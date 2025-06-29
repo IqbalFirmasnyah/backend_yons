@@ -5,7 +5,7 @@ import { UpdateNotifikasiDto } from '../dto/update_notifikasi.dto';
 
 @Controller('notifikasi')
 export class NotifikasiController {
-  constructor(private readonly notifikasiService: NotifikasiController) {}
+  constructor(private readonly notifikasiService: NotifikasiService) {}
 
   @Post()
   create(@Body() createNotifikasiDto: CreateNotifikasiDto) {
