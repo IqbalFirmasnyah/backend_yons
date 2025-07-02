@@ -1,62 +1,60 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AssignmentSupirArmada, StatusAssignment } from '../database/entities/assigment_supir_armada.entity';
-import { CreateAssignmentSupirArmadaDto } from '../dto/create_assignment_supir.dto';
-import { UpdateAssignmentSupirArmadaDto } from '../dto/update_assignment_supir.dto';
-import { Supir } from '../database/entities/supir.entity';
-import { Armada } from '../database/entities/armada.entity';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service';
+import { CreateAssignmentDto } from '../dto/create_assignment_supir.dto';
+import { UpdateAssignmentDto } from 'src/dto/update_assignment_supir.dto'; 
+import { StatusAssignment } from 'src/database/entities/assigment_supir_armada.entity';  
 
 @Injectable()
 export class AssignmentSupirArmadaService {
-  constructor(
-    @InjectRepository(AssignmentSupirArmada)
-    private readonly assignmentRepository: Repository<AssignmentSupirArmada>,
-    @InjectRepository(Supir)
-    private readonly supirRepository: Repository<Supir>,
-    @InjectRepository(Armada)
-    private readonly armadaRepository: Repository<Armada>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async create(createDto: CreateAssignmentSupirArmadaDto): Promise<AssignmentSupirArmada> {
-    // Validasi supir dan armada
+  async create(dto: CreateAssignmentDto) {
     const [supir, armada] = await Promise.all([
-      this.supirRepository.findOne({ where: { supirId: createDto.supirId } }),
-      this.armadaRepository.findOne({ where: { armadaId: createDto.armadaId } }),
+      this.prisma.supir.findUnique({ where: { supirId: dto.supirId } }),
+      this.prisma.armada.findUnique({ where: { armadaId: dto.armadaId } }),
     ]);
 
     if (!supir) {
-      throw new NotFoundException(`Supir dengan ID ${createDto.supirId} tidak ditemukan`);
+      throw new NotFoundException(`Supir dengan ID ${dto.supirId} tidak ditemukan`);
     }
 
     if (!armada) {
-      throw new NotFoundException(`Armada dengan ID ${createDto.armadaId} tidak ditemukan`);
+      throw new NotFoundException(`Armada dengan ID ${dto.armadaId} tidak ditemukan`);
     }
 
-    // Validasi armada tersedia
     if (armada.statusArmada !== 'tersedia') {
       throw new BadRequestException(`Armada tidak tersedia untuk assignment, status: ${armada.statusArmada}`);
     }
 
-    // Validasi status assignment
-    if (createDto.status !== StatusAssignment.AKTIF && createDto.tanggalSelesaiAssignment === undefined) {
+    if (dto.status !== StatusAssignment.AKTIF && !dto.tanggalSelesaiAssignment) {
       throw new BadRequestException('Tanggal selesai harus diisi jika status bukan AKTIF');
     }
 
-    const assignment = this.assignmentRepository.create(createDto);
-    return await this.assignmentRepository.save(assignment);
-  }
-
-  async findAll(): Promise<AssignmentSupirArmada[]> {
-    return await this.assignmentRepository.find({
-      relations: ['supir', 'armada'],
+    return this.prisma.assignmentSupirArmada.create({
+      data: {
+        ...dto,
+        tanggalMulaiAssignment: new Date(dto.tanggalMulaiAssignment),
+        tanggalSelesaiAssignment: dto.tanggalSelesaiAssignment ? new Date(dto.tanggalSelesaiAssignment) : null,
+      },
     });
   }
 
-  async findOne(id: number): Promise<AssignmentSupirArmada> {
-    const assignment = await this.assignmentRepository.findOne({
+  async findAll() {
+    return this.prisma.assignmentSupirArmada.findMany({
+      include: {
+        supir: true,
+        armada: true,
+      },
+    });
+  }
+
+  async findOne(id: number) {
+    const assignment = await this.prisma.assignmentSupirArmada.findUnique({
       where: { assignmentId: id },
-      relations: ['supir', 'armada'],
+      include: {
+        supir: true,
+        armada: true,
+      },
     });
 
     if (!assignment) {
@@ -66,76 +64,79 @@ export class AssignmentSupirArmadaService {
     return assignment;
   }
 
-  async update(
-    id: number,
-    updateDto: UpdateAssignmentSupirArmadaDto,
-  ): Promise<AssignmentSupirArmada> {
-    const assignment = await this.findOne(id);
+  async update(id: number, dto: UpdateAssignmentDto) {
+    const existing = await this.findOne(id);
 
-    // Validasi update sesuai status armada
-    if (updateDto.armadaId || updateDto.status) {
-      const armada = await this.armadaRepository.findOne({
-        where: { armadaId: updateDto.armadaId || assignment.armadaId },
-      });
+    if (dto.armadaId || dto.status) {
+      const armadaIdToCheck = dto.armadaId || existing.armadaId;
+      const armada = await this.prisma.armada.findUnique({ where: { armadaId: armadaIdToCheck } });
 
-      if (updateDto.status === StatusAssignment.AKTIF && armada?.statusArmada !== 'tersedia') {
-        throw new BadRequestException(
-          'Armada tidak tersedia untuk assignment aktif',
-        );
+      if (!armada) throw new NotFoundException(`Armada dengan ID ${armadaIdToCheck} tidak ditemukan`);
+
+      if (dto.status === StatusAssignment.AKTIF && armada.statusArmada !== 'tersedia') {
+        throw new BadRequestException('Armada tidak tersedia untuk assignment aktif');
       }
     }
 
-    Object.assign(assignment, updateDto);
-    return await this.assignmentRepository.save(assignment);
+    return this.prisma.assignmentSupirArmada.update({
+      where: { assignmentId: id },
+      data: {
+        ...dto,
+        tanggalMulaiAssignment: dto.tanggalMulaiAssignment
+          ? new Date(dto.tanggalMulaiAssignment)
+          : undefined,
+        tanggalSelesaiAssignment: dto.tanggalSelesaiAssignment
+          ? new Date(dto.tanggalSelesaiAssignment)
+          : undefined,
+      },
+    });
   }
 
-  async completeAssignment(id: number): Promise<AssignmentSupirArmada> {
+  async completeAssignment(id: number) {
     const assignment = await this.findOne(id);
 
     if (assignment.status === StatusAssignment.SELESAI) {
       throw new BadRequestException('Assignment sudah selesai');
     }
 
-    assignment.status = StatusAssignment.SELESAI;
-    assignment.tanggalSelesaiAssignment = new Date();
-
-    return await this.assignmentRepository.save(assignment);
+    return this.prisma.assignmentSupirArmada.update({
+      where: { assignmentId: id },
+      data: {
+        status: StatusAssignment.SELESAI,
+        tanggalSelesaiAssignment: new Date(),
+      },
+    });
   }
 
-  async findActiveAssignments(): Promise<AssignmentSupirArmada[]> {
-    return await this.assignmentRepository.find({
+  async findActiveAssignments() {
+    return this.prisma.assignmentSupirArmada.findMany({
       where: { status: StatusAssignment.AKTIF },
-      relations: ['supir', 'armada'],
+      include: {
+        supir: true,
+        armada: true,
+      },
     });
   }
 
-  async findAssignmentsByDriver(supirId: number): Promise<AssignmentSupirArmada[]> {
-    const supir = await this.supirRepository.findOne({
-      where: { supirId },
-    });
+  async findAssignmentsByDriver(supirId: number) {
+    const supir = await this.prisma.supir.findUnique({ where: { supirId } });
 
-    if (!supir) {
-      throw new NotFoundException(`Supir dengan ID ${supirId} tidak ditemukan`);
-    }
+    if (!supir) throw new NotFoundException(`Supir dengan ID ${supirId} tidak ditemukan`);
 
-    return await this.assignmentRepository.find({
+    return this.prisma.assignmentSupirArmada.findMany({
       where: { supirId },
-      relations: ['armada'],
+      include: { armada: true },
     });
   }
 
-  async findAssignmentsByVehicle(armadaId: number): Promise<AssignmentSupirArmada[]> {
-    const armada = await this.armadaRepository.findOne({
-      where: { armadaId },
-    });
+  async findAssignmentsByVehicle(armadaId: number) {
+    const armada = await this.prisma.armada.findUnique({ where: { armadaId } });
 
-    if (!armada) {
-      throw new NotFoundException(`Armada dengan ID ${armadaId} tidak ditemukan`);
-    }
+    if (!armada) throw new NotFoundException(`Armada dengan ID ${armadaId} tidak ditemukan`);
 
-    return await this.assignmentRepository.find({
+    return this.prisma.assignmentSupirArmada.findMany({
       where: { armadaId },
-      relations: ['supir'],
+      include: { supir: true },
     });
   }
 }

@@ -23,7 +23,7 @@ model User {
 
   // Relations
   pesanan           Pesanan[]
-  pesananLuarKota   PesananLuarKota[]
+  pesananLuarKota   PesananLuarKota[] 
   notifikasi        Notifikasi[]
   pembayaran        Pembayaran[]
   booking           Booking[]
@@ -239,7 +239,9 @@ model Notifikasi {
   adminId            Int?     @map("admin_id")
   pesananId          Int?     @map("pesanan_id")
   pesananLuarKotaId  Int?     @map("pesanan_luar_kota_id")
-  tipeNotifikasi     String   @map("tipe_notifikasi") @db.VarChar(50) // 'pesanan_baru', 'status_update', 'pembayaran', dll
+  bookingId          Int?     @map("booking_id")        // ✅ Tambah ini
+  refundId           Int?     @map("refund_id")         // ✅ Tambah ini
+  tipeNotifikasi     String   @map("tipe_notifikasi") @db.VarChar(50)
   judulNotifikasi    String   @map("judul_notifikasi") @db.VarChar(200)
   deskripsi          String   @db.Text
   isRead             Boolean  @default(false) @map("is_read")
@@ -251,9 +253,12 @@ model Notifikasi {
   admin             Admin?            @relation(fields: [adminId], references: [adminId], onDelete: Cascade)
   pesanan           Pesanan?          @relation(fields: [pesananId], references: [pesananId], onDelete: Cascade)
   pesananLuarKota   PesananLuarKota?  @relation(fields: [pesananLuarKotaId], references: [pesananLuarKotaId], onDelete: Cascade)
+  booking           Booking?          @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade) // ✅ Tambah ini
+  refund            Refund?           @relation(fields: [refundId], references: [refundId], onDelete: Cascade)   // ✅ Tambah ini
 
   @@map("notifikasi")
 }
+
 
 model Pembayaran {
   pembayaranId      Int      @id @default(autoincrement()) @map("pembayaran_id")
@@ -309,6 +314,7 @@ model Booking {
   refund            Refund[]
 
   @@map("booking")
+  Notifikasi Notifikasi[]
 }
 
 model UpdateStatusBooking {
@@ -365,4 +371,5 @@ model Refund {
   processedByAdmin    Admin?            @relation("RefundProcessedBy", fields: [processedByAdminId], references: [adminId], onDelete: SetNull)
 
   @@map("refund")
+  Notifikasi Notifikasi[]
 }

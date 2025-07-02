@@ -1,43 +1,49 @@
-import { IsNumber, IsString, IsDate, IsOptional, IsEnum } from 'class-validator';
-import { StatusPesanan } from '../database/entities/pesanan.entity';
+import { IsInt, IsDateString, IsString, IsDecimal, IsOptional, Min } from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreatePesananDto {
-  @IsNumber()
+  @ApiProperty({ description: 'ID User yang melakukan pesanan' })
+  @IsInt()
+  @Type(() => Number)
   userId: number;
 
-  @IsNumber()
+  @ApiProperty({ description: 'ID Paket Wisata' })
+  @IsInt()
+  @Type(() => Number)
   paketId: number;
 
-  @IsNumber()
+  @ApiProperty({ description: 'ID Supir' })
+  @IsInt()
+  @Type(() => Number)
   supirId: number;
 
-  @IsNumber()
+  @ApiProperty({ description: 'ID Armada' })
+  @IsInt()
+  @Type(() => Number)
   armadaId: number;
 
-  @IsOptional()
-  @IsNumber()
-  bookingId?: number; // Nullable
+  @ApiProperty({ description: 'Tanggal mulai wisata', example: '2024-03-15' })
+  @IsDateString()
+  tanggalMulaiWisata: string;
 
-  @IsDate()
-  tanggalPesan: Date;
+  @ApiProperty({ description: 'Tanggal selesai wisata', example: '2024-03-17' })
+  @IsDateString()
+  tanggalSelesaiWisata: string;
 
-  @IsDate()
-  tanggalMulaiWisata: Date;
-
-  @IsDate()
-  tanggalSelesaiWisata: Date;
-
-  @IsNumber()
+  @ApiProperty({ description: 'Jumlah peserta', minimum: 1 })
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
   jumlahPeserta: number;
 
-  @IsNumber()
+  @ApiProperty({ description: 'Total harga pesanan', example: '1500000.00' })
+  @IsDecimal({ decimal_digits: '0,2' })
+  @Transform(({ value }) => parseFloat(value))
   totalHarga: number;
 
-  @IsOptional()
-  @IsEnum(StatusPesanan)
-  statusPesanan?: StatusPesanan; // Optional, default to PENDING
-
+  @ApiPropertyOptional({ description: 'Catatan khusus untuk pesanan' })
   @IsOptional()
   @IsString()
-  catatanKhusus?: string; // Nullable
+  catatanKhusus?: string;
 }

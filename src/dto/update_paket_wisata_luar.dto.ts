@@ -1,28 +1,21 @@
-import { IsOptional, IsString, IsNumber, IsEnum } from 'class-validator';
-import { StatusPaket } from '../database/entities/paket_wisata.entity';
+import { ApiProperty, PartialType } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsOptional, IsInt, IsArray, ValidateNested } from 'class-validator';
+import { CreateDetailRuteDto, CreatePaketWisataLuarKotaDto } from './create_paket_wisata_luar.dto';
 
-export class UpdatePaketWisataLuarKotaDto {
+export class UpdateDetailRuteDto extends PartialType(CreateDetailRuteDto) {
+  @ApiProperty({ description: 'ID rute (untuk update)', required: false })
   @IsOptional()
-  @IsString()
-  namaPaket?: string;
+  @IsInt()
+  @Type(() => Number)
+  ruteId?: number;
+}
 
+export class UpdatePaketWisataLuarKotaDto extends PartialType(CreatePaketWisataLuarKotaDto) {
+  @ApiProperty({ type: [UpdateDetailRuteDto], description: 'Detail rute perjalanan', required: false })
   @IsOptional()
-  @IsString()
-  tujuanUtama?: string;
-
-  @IsOptional()
-  @IsNumber()
-  totalJarakKm?: number;
-
-  @IsOptional()
-  @IsNumber()
-  estimasiDurasi?: number;
-
-  @IsOptional()
-  @IsNumber()
-  hargaEstimasi?: number;
-
-  @IsOptional()
-  @IsEnum(StatusPaket)
-  statusPaket?: StatusPaket; // Optional
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => UpdateDetailRuteDto)
+  urutanKe?: UpdateDetailRuteDto[];
 }

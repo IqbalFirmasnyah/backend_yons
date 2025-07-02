@@ -1,16 +1,13 @@
+// src/modules/booking/booking.module.ts
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Booking } from 'src/database/entities/booking.entity';
-import { UpdateStatusBooking } from 'src/database/entities/update_status_booking.entity';
-import { BookingService } from 'src/services/booking.service';
-import { BookingController } from 'src/controllers/booking.controller';
+import { BookingController } from 'src/controllers/booking.controller'; 
+import { BookingService } from '../../services/booking.service';
+import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([Booking, UpdateStatusBooking]),
-  ],
-  providers: [BookingService],
+  imports: [PrismaModule],
   controllers: [BookingController],
-  exports: [BookingService], // Ekspor BookingService jika diperlukan di modul lain
+  providers: [BookingService],
+  exports: [BookingService],
 })
 export class BookingModule {}

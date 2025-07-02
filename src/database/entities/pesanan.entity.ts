@@ -7,14 +7,9 @@ import { Booking } from './booking.entity';
 import { Pembayaran } from './pembayaran.entity';
 import { Refund } from './refund.entity';
 import { Notifikasi } from 'src/database/entities/notification.entity';
+import { StatusPesanan } from 'src/common/enums/status-pesanan.enum';
 
-export enum StatusPesanan {
-  PENDING = 'pending',
-  CONFIRMED = 'confirmed',
-  ONGOING = 'ongoing',
-  COMPLETED = 'completed',
-  CANCELLED = 'cancelled'
-}
+
 
 @Entity('pesanan')
 export class Pesanan {

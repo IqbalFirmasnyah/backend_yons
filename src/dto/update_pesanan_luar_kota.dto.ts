@@ -1,56 +1,59 @@
-import { IsOptional, IsNumber, IsString, IsDate, IsEnum } from 'class-validator';
-import { StatusPesanan } from '../database/entities/pesanan.entity';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsString, IsInt, IsDateString, IsDecimal, IsIn, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdatePesananLuarKotaDto {
+  @ApiProperty({ description: 'ID supir', required: false })
   @IsOptional()
-  @IsNumber()
-  userId?: number;
-
-  @IsOptional()
-  @IsNumber()
-  paketLuarKotaId?: number;
-
-  @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Type(() => Number)
   supirId?: number;
 
+  @ApiProperty({ description: 'ID armada', required: false })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Type(() => Number)
   armadaId?: number;
 
-  @IsOptional()
-  @IsNumber()
-  bookingId?: number; // Nullable
-
+  @ApiProperty({ description: 'Input tujuan custom dari user', required: false })
   @IsOptional()
   @IsString()
-  inputTujuan?: string; // Nullable
+  inputTujuanUser?: string;
 
+  @ApiProperty({ description: 'Tanggal mulai wisata', required: false })
   @IsOptional()
-  @IsDate()
-  tanggalPesan?: Date;
+  @IsDateString()
+  tanggalMulaiWisata?: string;
 
+  @ApiProperty({ description: 'Tanggal selesai wisata', required: false })
   @IsOptional()
-  @IsDate()
-  tanggalMulaiWisata?: Date;
+  @IsDateString()
+  tanggalSelesaiWisata?: string;
 
+  @ApiProperty({ description: 'Jumlah peserta', minimum: 1, required: false })
   @IsOptional()
-  @IsDate()
-  tanggalSelesaiWisata?: Date;
-
-  @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
   jumlahPeserta?: number;
 
+  @ApiProperty({ description: 'Total harga final', required: false })
   @IsOptional()
-  @IsNumber()
+  @IsDecimal()
   totalHargaFinal?: number;
 
-  @IsOptional()
-  @IsEnum(StatusPesanan)
-  statusPesanan?: StatusPesanan; // Optional
-
+  @ApiProperty({ 
+    description: 'Status pesanan', 
+    enum: ['pending', 'confirmed', 'ongoing', 'completed', 'cancelled'],
+    required: false 
+  })
   @IsOptional()
   @IsString()
-  catatanKhusus?: string; // Nullable
+  @IsIn(['pending', 'confirmed', 'ongoing', 'completed', 'cancelled'])
+  statusPesanan?: string;
+
+  @ApiProperty({ description: 'Catatan khusus', required: false })
+  @IsOptional()
+  @IsString()
+  catatanKhusus?: string;
 }

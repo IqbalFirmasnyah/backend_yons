@@ -1,7 +1,7 @@
-import { IsNumber, IsString, IsOptional, IsDate } from 'class-validator';
+import { IsInt, IsOptional, IsString, IsDateString } from 'class-validator';
 
 export class CreateUpdateStatusBookingDto {
-  @IsNumber()
+  @IsInt()
   bookingId: number;
 
   @IsString()
@@ -11,13 +11,17 @@ export class CreateUpdateStatusBookingDto {
   statusBaru: string;
 
   @IsOptional()
-  @IsNumber()
-  updatedByUser: any; // Nullable
+  @IsInt()
+  updatedByUserId?: number;
 
   @IsOptional()
-  @IsNumber()
-  updatedByAdminId?: number; // Nullable
+  @IsInt()
+  updatedByAdminId?: number;
 
-  @IsDate()
-  timestampUpdate: Date;
+  @IsOptional()
+  @IsString()
+  keterangan?: string;
+
+  @IsDateString()
+  timestampUpdate: string;
 }

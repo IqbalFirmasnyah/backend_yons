@@ -1,32 +1,48 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Notifikasi } from '../database/entities/notification.entity';
+import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateNotifikasiDto } from '../dto/create_notifikasi.dto';
 import { UpdateNotifikasiDto } from '../dto/update_notifikasi.dto';
 
 @Injectable()
 export class NotifikasiService {
-  constructor(
-    @InjectRepository(Notifikasi)
-    private readonly notifikasiRepository: Repository<Notifikasi>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async create(createDto: CreateNotifikasiDto): Promise<Notifikasi> {
-    const notifikasi = this.notifikasiRepository.create(createDto);
-    return await this.notifikasiRepository.save(notifikasi);
-  }
-
-  async findAll(): Promise<Notifikasi[]> {
-    return await this.notifikasiRepository.find({
-      relations: ['user', 'admin', 'pesanan', 'pesananLuarKota', 'booking', 'refund'],
+  async create(createDto: CreateNotifikasiDto) {
+    return await this.prisma.notifikasi.create({
+      data: {
+        ...createDto,
+        tanggalNotifikasi: createDto.tanggalNotifikasi ?? new Date(),
+      },
     });
   }
 
-  async findOne(id: number): Promise<Notifikasi> {
-    const notifikasi = await this.notifikasiRepository.findOne({
+  async findAll() {
+    return await this.prisma.notifikasi.findMany({
+      include: {
+        user: true,
+        admin: true,
+        pesanan: true,
+        pesananLuarKota: true,
+        booking: true,
+        refund: true,
+      },
+      orderBy: {
+        tanggalNotifikasi: 'desc',
+      },
+    });
+  }
+
+  async findOne(id: number) {
+    const notifikasi = await this.prisma.notifikasi.findUnique({
       where: { notifikasiId: id },
-      relations: ['user', 'admin', 'pesanan', 'pesananLuarKota', 'booking', 'refund'],
+      include: {
+        user: true,
+        admin: true,
+        pesanan: true,
+        pesananLuarKota: true,
+        booking: true,
+        refund: true,
+      },
     });
 
     if (!notifikasi) {
@@ -36,20 +52,32 @@ export class NotifikasiService {
     return notifikasi;
   }
 
-  async update(id: number, updateDto: UpdateNotifikasiDto): Promise<Notifikasi> {
-    const notifikasi = await this.findOne(id);
-    Object.assign(notifikasi, updateDto);
-    return await this.notifikasiRepository.save(notifikasi);
+  async update(id: number, updateDto: UpdateNotifikasiDto) {
+    // pastikan notifikasi ada
+    await this.findOne(id);
+
+    return await this.prisma.notifikasi.update({
+      where: { notifikasiId: id },
+      data: updateDto,
+    });
   }
 
-  async markAsRead(id: number): Promise<Notifikasi> {
-    const notifikasi = await this.findOne(id);
-    notifikasi.isRead = true;
-    return await this.notifikasiRepository.save(notifikasi);
+  async markAsRead(id: number) {
+    // pastikan notifikasi ada
+    await this.findOne(id);
+
+    return await this.prisma.notifikasi.update({
+      where: { notifikasiId: id },
+      data: { isRead: true },
+    });
   }
 
   async delete(id: number): Promise<void> {
-    const notifikasi = await this.findOne(id);
-    await this.notifikasiRepository.remove(notifikasi);
+    // pastikan notifikasi ada
+    await this.findOne(id);
+
+    await this.prisma.notifikasi.delete({
+      where: { notifikasiId: id },
+    });
   }
 }

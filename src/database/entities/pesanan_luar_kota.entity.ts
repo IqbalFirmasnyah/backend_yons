@@ -7,7 +7,7 @@ import { Booking } from './booking.entity';
 import { Pembayaran } from './pembayaran.entity';
 import { Refund } from './refund.entity';
 import { Notifikasi } from 'src/database/entities/notification.entity';
-import { StatusPesanan } from './pesanan.entity';
+import { StatusPesanan } from 'src/common/enums/status-pesanan.enum';
 
 @Entity('pesanan_luar_kota')
 export class PesananLuarKota {

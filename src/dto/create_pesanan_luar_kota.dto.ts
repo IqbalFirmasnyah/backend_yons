@@ -1,47 +1,55 @@
-import { IsNumber, IsString, IsDate, IsOptional, IsEnum } from 'class-validator';
-import { StatusPesanan } from '../database/entities/pesanan.entity';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, IsInt, IsOptional, IsDateString, IsDecimal, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePesananLuarKotaDto {
-  @IsNumber()
-  userId: number;
-
-  @IsNumber()
+  @ApiProperty({ description: 'ID paket wisata luar kota' })
+  @IsNotEmpty()
+  @IsInt()
+  @Type(() => Number)
   paketLuarKotaId: number;
 
-  @IsNumber()
+  @ApiProperty({ description: 'ID supir' })
+  @IsNotEmpty()
+  @IsInt()
+  @Type(() => Number)
   supirId: number;
 
-  @IsNumber()
+  @ApiProperty({ description: 'ID armada' })
+  @IsNotEmpty()
+  @IsInt()
+  @Type(() => Number)
   armadaId: number;
 
-  @IsOptional()
-  @IsNumber()
-  bookingId?: number; // Nullable
-
+  @ApiProperty({ description: 'Input tujuan custom dari user', required: false })
   @IsOptional()
   @IsString()
-  inputTujuan?: string; // Nullable
+  inputTujuanUser?: string;
 
-  @IsDate()
-  tanggalPesan: Date;
+  @ApiProperty({ description: 'Tanggal mulai wisata' })
+  @IsNotEmpty()
+  @IsDateString()
+  tanggalMulaiWisata: string;
 
-  @IsDate()
-  tanggalMulaiWisata: Date;
+  @ApiProperty({ description: 'Tanggal selesai wisata' })
+  @IsNotEmpty()
+  @IsDateString()
+  tanggalSelesaiWisata: string;
 
-  @IsDate()
-  tanggalSelesaiWisata: Date;
-
-  @IsNumber()
+  @ApiProperty({ description: 'Jumlah peserta', minimum: 1 })
+  @IsNotEmpty()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
   jumlahPeserta: number;
 
-  @IsNumber()
+  @ApiProperty({ description: 'Total harga final' })
+  @IsNotEmpty()
+  @IsDecimal()
   totalHargaFinal: number;
 
-  @IsOptional()
-  @IsEnum(StatusPesanan)
-  statusPesanan?: StatusPesanan; // Optional, default to PENDING
-
+  @ApiProperty({ description: 'Catatan khusus', required: false })
   @IsOptional()
   @IsString()
-  catatanKhusus?: string; // Nullable
+  catatanKhusus?: string;
 }

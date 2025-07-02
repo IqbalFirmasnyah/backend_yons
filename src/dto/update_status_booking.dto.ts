@@ -1,27 +1,4 @@
-import { IsOptional, IsNumber, IsString, IsDate } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateUpdateStatusBookingDto } from './create_status_booking.dto';
 
-export class UpdateUpdateStatusBookingDto {
-  @IsOptional()
-  @IsNumber()
-  bookingId?: number;
-
-  @IsOptional()
-  @IsString()
-  statusLama?: string;
-
-  @IsOptional()
-  @IsString()
-  statusBaru?: string;
-
-  @IsOptional()
-  @IsNumber()
-  updatedByUser : any; // Nullable
-
-  @IsOptional()
-  @IsNumber()
-  updatedByAdminId?: number; // Nullable
-
-  @IsOptional()
-  @IsDate()
-  timestampUpdate?: Date;
-}
+export class UpdateUpdateStatusBookingDto extends PartialType(CreateUpdateStatusBookingDto) {}

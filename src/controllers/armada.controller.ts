@@ -1,32 +1,40 @@
-import { IsString, IsNumber, IsEnum, IsOptional } from 'class-validator';
-import { StatusArmada } from '../database/entities/armada.entity';
+// src/armada/armada.controller.ts
+import { Controller, Post, Get, Body, Param, Put, Delete, UsePipes, ValidationPipe, ParseIntPipe } from '@nestjs/common';
+import { ArmadaService } from 'src/services/armada.service'; 
+import { CreateArmadaDto } from '../dto/create_armada.dto';
+import { UpdateArmadaDto } from '../dto/update_armada.dto';
+import { Armada } from '@prisma/client'; // Gunakan type dari Prisma
 
-export class UpdateArmadaDto {
-  @IsOptional()
-  @IsString()
-  jenisMobil?: string;
+@Controller('armada')
+@UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+export class ArmadaController {
+  constructor(private readonly armadaService: ArmadaService) {}
 
-  @IsOptional()
-  @IsString()
-  merkMobil?: string;
+  @Post()
+  async create(@Body() createArmadaDto: CreateArmadaDto): Promise<Armada> {
+    return this.armadaService.createArmada(createArmadaDto);
+  }
 
-  @IsOptional()
-  @IsString()
-  platNomor?: string;
+  @Get()
+  async findAll(): Promise<Armada[]> {
+    return this.armadaService.findAllArmadas();
+  }
 
-  @IsOptional()
-  @IsNumber()
-  kapasitas?: number;
+  @Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number): Promise<Armada> {
+    return this.armadaService.findOneById(id);
+  }
 
-  @IsOptional()
-  @IsNumber()
-  tahunKendaraan?: number;
+  @Put(':id')
+  async update(
+    @Param('id', ParseIntPipe) id: number, 
+    @Body() updateArmadaDto: UpdateArmadaDto
+  ): Promise<Armada> {
+    return this.armadaService.updateArmada(id, updateArmadaDto);
+  }
 
-  @IsOptional()
-  @IsEnum(StatusArmada)
-  statusArmada?: StatusArmada;
-
-  @IsOptional()
-  @IsString()
-  fotoArmada?: string; // Nullable
+  @Delete(':id')
+  async remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.armadaService.deleteArmada(id);
+  }
 }

@@ -94,11 +94,11 @@ export class AuthService {
       username: createUserDto.username,
       email: createUserDto.email,
       password: createUserDto.password,
-      namaLengkap: createUserDto.nama_lengkap, // DTO menggunakan nama_lengkap
+      namaLengkap: createUserDto.namaLengkap, // DTO menggunakan nama_lengkap
       alamat: createUserDto.alamat,
-      tanggalLahir: createUserDto.tanggal_lahir, // DTO menggunakan tanggal_lahir
-      noHp: createUserDto.no_hp, // DTO menggunakan no_hp
-      fotoProfil: createUserDto.foto_profil // DTO menggunakan foto_profil
+      tanggalLahir: createUserDto.tanggalLahir, // DTO menggunakan tanggal_lahir
+      noHp: createUserDto.noHp, // DTO menggunakan no_hp
+      fotoProfil: createUserDto.fotoProfil // DTO menggunakan foto_profil
     };
 
     // Cek apakah email sudah terdaftar
@@ -258,11 +258,11 @@ export class AuthService {
       
       if (updateUserDto.username) updateData.username = updateUserDto.username;
       if (updateUserDto.email) updateData.email = updateUserDto.email;
-      if (updateUserDto.nama_lengkap) updateData.namaLengkap = updateUserDto.nama_lengkap;
+      if (updateUserDto.namaLengkap) updateData.namaLengkap = updateUserDto.namaLengkap;
       if (updateUserDto.alamat) updateData.alamat = updateUserDto.alamat;
-      if (updateUserDto.tanggal_lahir) updateData.tanggalLahir = updateUserDto.tanggal_lahir;
-      if (updateUserDto.no_hp) updateData.noHp = updateUserDto.no_hp;
-      if (updateUserDto.foto_profil !== undefined) updateData.fotoProfil = updateUserDto.foto_profil;
+      if (updateUserDto.tanggalLahir) updateData.tanggalLahir = updateUserDto.tanggalLahir;
+      if (updateUserDto.noHp) updateData.noHp = updateUserDto.noHp;
+      if (updateUserDto.fotoProfil !== undefined) updateData.fotoProfil = updateUserDto.fotoProfil;
       
       // Hash password jika diubah
       if (updateUserDto.password) {

@@ -1,49 +1,39 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { Supir } from '../database/entities/supir.entity';
+import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupirDto } from '../dto/create_supir.dto';
 import { UpdateSupirDto } from '../dto/update_supir.dto';
 
 @Injectable()
 export class SupirService {
-  constructor(
-    @InjectRepository(Supir)
-    private readonly supirRepository: Repository<Supir>,
-  ) {}
+  delete(id: number) {
+      throw new Error('Method not implemented.');
+  }
+  constructor(private prisma: PrismaService) {}
 
-  async create(createDto: CreateSupirDto): Promise<Supir> {
-    const supir = this.supirRepository.create(createDto);
-    return await this.supirRepository.save(supir);
+  async create(data: CreateSupirDto) {
+    return this.prisma.supir.create({ data });
   }
 
-  async findAll(): Promise<Supir[]> {
-    return await this.supirRepository.find({
-      relations: ['pesanan', 'pesananLuarKota', 'booking', 'assignments'],
-    });
+  async findAll() {
+    return this.prisma.supir.findMany();
   }
 
-  async findOne(id: number): Promise<Supir> {
-    const supir = await this.supirRepository.findOne({
-      where: { supirId: id },
-      relations: ['pesanan', 'pesananLuarKota', 'booking', 'assignments'],
-    });
-
-    if (!supir) {
-      throw new NotFoundException(`Supir dengan ID ${id} tidak ditemukan`);
-    }
-
+  async findOne(id: number) {
+    const supir = await this.prisma.supir.findUnique({ where: { supirId: id } });
+    if (!supir) throw new NotFoundException(`Supir with ID ${id} not found`);
     return supir;
   }
 
-  async update(id: number, updateDto: UpdateSupirDto): Promise<Supir> {
-    const supir = await this.findOne(id);
-    Object.assign(supir, updateDto);
-    return await this.supirRepository.save(supir);
+  async update(id: number, data: UpdateSupirDto) {
+    await this.findOne(id); // check existence
+    return this.prisma.supir.update({
+      where: { supirId: id },
+      data,
+    });
   }
 
-  async delete(id: number): Promise<void> {
-    const supir = await this.findOne(id);
-    await this.supirRepository.remove(supir);
+  async remove(id: number) {
+    await this.findOne(id); // check existence
+    return this.prisma.supir.delete({ where: { supirId: id } });
   }
 }

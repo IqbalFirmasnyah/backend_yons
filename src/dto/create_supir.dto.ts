@@ -1,32 +1,42 @@
-import { IsString, IsNumber, IsOptional, IsEnum } from 'class-validator';
-import { StatusSupir } from '../database/entities/supir.entity';
-
-export class CreateSupirDto {
-  @IsString()
-  nama: string;
-
-  @IsString()
-  alamat: string;
-
-  @IsString()
-  nomorHp: string;
-
-  @IsString()
-  nomorSim: string;
-
-  @IsOptional()
-  @IsString()
-  fotoSupir?: string; // Nullable
-
-  @IsOptional()
-  @IsNumber()
-  pengalamanTahun?: number; // Default to 0
-
-  @IsOptional()
-  @IsNumber()
-  ratingRata?: number; // Default to 0
-
-  @IsOptional()
-  @IsEnum(StatusSupir)
-  statusSupir?: StatusSupir; // Optional, default to TERSEDIA
-}
+import {
+    IsString,
+    IsNotEmpty,
+    IsOptional,
+    IsInt,
+    IsDecimal,
+    IsIn,
+  } from 'class-validator';
+  
+  export class CreateSupirDto {
+    @IsString()
+    @IsNotEmpty()
+    nama: string;
+  
+    @IsString()
+    @IsNotEmpty()
+    alamat: string;
+  
+    @IsString()
+    @IsNotEmpty()
+    nomorHp: string;
+  
+    @IsString()
+    @IsNotEmpty()
+    nomorSim: string;
+  
+    @IsOptional()
+    @IsString()
+    fotoSupir?: string;
+  
+    @IsInt()
+    pengalamanTahun: number;
+  
+    @IsOptional()
+    @IsDecimal({ decimal_digits: '0,2' }, { message: 'Format harus angka desimal, contoh: 4.5' })
+    ratingRata?: any;
+  
+    @IsString()
+    @IsIn(['tersedia', 'bertugas', 'off'])
+    statusSupir: string;
+  }
+  

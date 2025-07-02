@@ -1,52 +1,9 @@
-import { IsOptional, IsNumber, IsString, IsDate, IsEnum } from 'class-validator';
-import { StatusPesanan } from '../database/entities/pesanan.entity';
+import { PartialType } from '@nestjs/swagger';
+import { IsEnum, IsOptional } from 'class-validator';
+import { CreatePesananDto } from './create_pesanan.dto';
 
-export class UpdatePesananDto {
+export class UpdatePesananDto extends PartialType(CreatePesananDto) {
   @IsOptional()
-  @IsNumber()
-  userId?: number;
-
-  @IsOptional()
-  @IsNumber()
-  paketId?: number;
-
-  @IsOptional()
-  @IsNumber()
-  supirId?: number;
-
-  @IsOptional()
-  @IsNumber()
-  armadaId?: number;
-
-  @IsOptional()
-  @IsNumber()
-  bookingId?: number; // Nullable
-
-  @IsOptional()
-  @IsDate()
-  tanggalPesan?: Date;
-
-  @IsOptional()
-  @IsDate()
-  tanggalMulaiWisata?: Date;
-
-  @IsOptional()
-  @IsDate()
-  tanggalSelesaiWisata?: Date;
-
-  @IsOptional()
-  @IsNumber()
-  jumlahPeserta?: number;
-
-  @IsOptional()
-  @IsNumber()
-  totalHarga?: number;
-
-  @IsOptional()
-  @IsEnum(StatusPesanan)
-  statusPesanan?: StatusPesanan; // Optional
-
-  @IsOptional()
-  @IsString()
-  catatanKhusus?: string; // Nullable
+  @IsEnum(['pending', 'confirmed', 'ongoing', 'completed', 'cancelled'])
+  statusPesanan?: 'pending' | 'confirmed' | 'ongoing' | 'completed' | 'cancelled';
 }

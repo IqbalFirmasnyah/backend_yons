@@ -1,20 +1,20 @@
-import { IsNumber, IsEnum, IsDate, IsOptional } from 'class-validator';
-import { StatusAssignment } from '../database/entities/assigment_supir_armada.entity';
+// src/assignment-supir-armada/dto/create-assignment.dto.ts
+import { IsDateString, IsInt, IsOptional, IsString } from 'class-validator';
 
-export class CreateAssignmentSupirArmadaDto {
-  @IsNumber()
+export class CreateAssignmentDto {
+  @IsInt()
   supirId: number;
 
-  @IsNumber()
+  @IsInt()
   armadaId: number;
 
-  @IsDate()
-  tanggalMulaiAssignment: Date;
+  @IsDateString()
+  tanggalMulaiAssignment: string;
 
   @IsOptional()
-  @IsDate()
-  tanggalSelesaiAssignment?: Date; // Nullable
+  @IsDateString()
+  tanggalSelesaiAssignment?: string;
 
-  @IsEnum(StatusAssignment)
-  status: StatusAssignment; // Use enum for status
+  @IsString()
+  status: string; // 'aktif', 'selesai'
 }
