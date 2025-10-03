@@ -1,231 +1,124 @@
-// pesanan.controller.ts
-import {
-    Controller,
-    Get,
-    Post,
-    Body,
-    Patch,
-    Param,
-    Delete,
-    Query,
-    ParseIntPipe,
-    HttpStatus,
-    UseGuards,
-    HttpCode
+import { 
+    Controller, 
+    Post, 
+    Body, 
+    Get, 
+    Param, 
+    Patch, 
+    Delete, 
+    HttpCode, 
+    HttpStatus, 
+    NotFoundException, 
+    InternalServerErrorException, 
+    BadRequestException,
+    UseGuards // Import UseGuards
   } from '@nestjs/common';
-  import {
-    ApiTags,
-    ApiOperation,
-    ApiResponse,
-    ApiParam,
-    ApiQuery,
-    ApiBearerAuth,
-    ApiBody
-  } from '@nestjs/swagger';
   import { PesananService } from 'src/services/pesanan.service'; 
-  import { CreatePesananDto } from '../dto/create_pesanan.dto';
-  import { UpdatePesananDto } from '../dto/update_pesanan.dto';
-  import { QueryPesananDto } from '../dto/query_pesanan.dto';
-  import { PesananResponseDto } from '../dto/pesanan_response.dto';
+  import { CreatePesananDto } from '../dto/create_pesanan.dto'; // Adjust path
+  import { UpdatePesananDto } from '../dto/update_pesanan.dto'; // Adjust path
+  import { JwtAuthGuard } from 'src/auth/strategies/jwt_auth.guard'; // Import your JwtAuthGuard
+  import { ApiTags, ApiOperation, ApiResponse as SwaggerApiResponse, ApiBearerAuth } from '@nestjs/swagger'; // Import Swagger decorators
   
-  @ApiTags('Pesanan')
+  @ApiTags('Pesanan') // Add Swagger tag for documentation
+  @ApiBearerAuth() // Indicate that this controller uses Bearer token authentication
+  @UseGuards(JwtAuthGuard) // Apply JwtAuthGuard to protect all routes in this controller
   @Controller('pesanan')
-  // @UseGuards(JwtAuthGuard) // Uncomment jika menggunakan JWT auth
-  // @ApiBearerAuth()
   export class PesananController {
     constructor(private readonly pesananService: PesananService) {}
   
     @Post()
     @HttpCode(HttpStatus.CREATED)
-    @ApiOperation({ summary: 'Membuat pesanan baru' })
-    @ApiBody({ type: CreatePesananDto })
-    @ApiResponse({
-      status: 201,
-      description: 'Pesanan berhasil dibuat',
-      type: PesananResponseDto
-    })
-    @ApiResponse({
-      status: 400,
-      description: 'Data tidak valid atau konflik jadwal'
-    })
-    @ApiResponse({
-      status: 404,
-      description: 'User, paket, supir, atau armada tidak ditemukan'
-    })
-    async create(@Body() createPesananDto: CreatePesananDto): Promise<PesananResponseDto> {
-      return this.pesananService.create(createPesananDto);
+    @ApiOperation({ summary: 'Create a new order' }) // Swagger operation summary
+    @SwaggerApiResponse({ status: HttpStatus.CREATED, description: 'The order has been successfully created.' }) // Swagger response
+    @SwaggerApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data or related entities not found.' })
+    @SwaggerApiResponse({ status: HttpStatus.INTERNAL_SERVER_ERROR, description: 'Failed to create order.' })
+    async create(@Body() createPesananDto: CreatePesananDto) {
+      try {
+        const pesanan = await this.pesananService.createPesanan(createPesananDto);
+        return pesanan;
+      } catch (error) {
+        console.error('Error creating pesanan:', error);
+        if (error instanceof NotFoundException || error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new InternalServerErrorException('Failed to create pesanan.');
+      }
     }
   
     @Get()
-    @ApiOperation({ summary: 'Mendapatkan daftar pesanan dengan filter dan pagination' })
-    @ApiQuery({ name: 'userId', required: false, type: Number, description: 'Filter berdasarkan user ID' })
-    @ApiQuery({ name: 'statusPesanan', required: false, enum: ['pending', 'confirmed', 'ongoing', 'completed', 'cancelled'], description: 'Filter berdasarkan status' })
-    @ApiQuery({ name: 'tanggalMulaiDari', required: false, type: String, description: 'Filter tanggal mulai dari (YYYY-MM-DD)' })
-    @ApiQuery({ name: 'tanggalMulaiSampai', required: false, type: String, description: 'Filter tanggal mulai sampai (YYYY-MM-DD)' })
-    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Halaman (default: 1)' })
-    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Jumlah data per halaman (default: 10)' })
-    @ApiResponse({
-      status: 200,
-      description: 'Daftar pesanan berhasil diambil',
-      schema: {
-        type: 'object',
-        properties: {
-          data: {
-            type: 'array',
-            items: { $ref: '#/components/schemas/PesananResponseDto' }
-          },
-          total: { type: 'number' },
-          page: { type: 'number' },
-          limit: { type: 'number' }
-        }
+    @ApiOperation({ summary: 'Retrieve all orders' })
+    @SwaggerApiResponse({ status: HttpStatus.OK, description: 'Successfully retrieved all orders.' })
+    @SwaggerApiResponse({ status: HttpStatus.INTERNAL_SERVER_ERROR, description: 'Failed to retrieve orders.' })
+    async findAll() {
+      try {
+        return await this.pesananService.findAllPesanan();
+      } catch (error) {
+        console.error('Error fetching all pesanan:', error);
+        throw new InternalServerErrorException('Failed to retrieve pesanan.');
       }
-    })
-    async findAll(@Query() query: QueryPesananDto) {
-      return this.pesananService.findAll(query);
-    }
-  
-    @Get('statistics')
-    @ApiOperation({ summary: 'Mendapatkan statistik pesanan' })
-    @ApiResponse({
-      status: 200,
-      description: 'Statistik pesanan berhasil diambil',
-      schema: {
-        type: 'object',
-        properties: {
-          totalPesanan: { type: 'number' },
-          statusBreakdown: {
-            type: 'object',
-            properties: {
-              pending: { type: 'number' },
-              confirmed: { type: 'number' },
-              ongoing: { type: 'number' },
-              completed: { type: 'number' },
-              cancelled: { type: 'number' }
-            }
-          },
-          totalRevenue: { type: 'number' }
-        }
-      }
-    })
-    async getStatistics() {
-      return this.pesananService.getStatistics();
     }
   
     @Get(':id')
-    @ApiOperation({ summary: 'Mendapatkan detail pesanan berdasarkan ID' })
-    @ApiParam({ name: 'id', type: 'number', description: 'ID pesanan' })
-    @ApiResponse({
-      status: 200,
-      description: 'Detail pesanan berhasil diambil',
-      type: PesananResponseDto
-    })
-    @ApiResponse({
-      status: 404,
-      description: 'Pesanan tidak ditemukan'
-    })
-    async findOne(@Param('id', ParseIntPipe) id: number): Promise<PesananResponseDto> {
-      return this.pesananService.findOne(id);
+    @ApiOperation({ summary: 'Retrieve a single order by ID' })
+    @SwaggerApiResponse({ status: HttpStatus.OK, description: 'Successfully retrieved the order.' })
+    @SwaggerApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Order not found.' })
+    @SwaggerApiResponse({ status: HttpStatus.INTERNAL_SERVER_ERROR, description: 'Failed to retrieve order.' })
+    async findOne(@Param('id') id: string) {
+      try {
+        const pesanan = await this.pesananService.findOnePesanan(parseInt(id, 10));
+        if (!pesanan) {
+          throw new NotFoundException(`Pesanan with ID ${id} not found.`);
+        }
+        return pesanan;
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw error;
+        }
+        console.error(`Error fetching pesanan with ID ${id}:`, error);
+        throw new InternalServerErrorException('Failed to retrieve pesanan.');
+      }
     }
   
     @Patch(':id')
-    @ApiOperation({ summary: 'Memperbarui pesanan' })
-    @ApiParam({ name: 'id', type: 'number', description: 'ID pesanan' })
-    @ApiBody({ type: UpdatePesananDto })
-    @ApiResponse({
-      status: 200,
-      description: 'Pesanan berhasil diperbarui',
-      type: PesananResponseDto
-    })
-    @ApiResponse({
-      status: 400,
-      description: 'Data tidak valid atau transisi status tidak diizinkan'
-    })
-    @ApiResponse({
-      status: 404,
-      description: 'Pesanan tidak ditemukan'
-    })
-    async update(
-      @Param('id', ParseIntPipe) id: number,
-      @Body() updatePesananDto: UpdatePesananDto
-    ): Promise<PesananResponseDto> {
-      return this.pesananService.update(id, updatePesananDto);
+    @ApiOperation({ summary: 'Update an existing order' })
+    @SwaggerApiResponse({ status: HttpStatus.OK, description: 'The order has been successfully updated.' })
+    @SwaggerApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Order not found.' })
+    @SwaggerApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid input data.' })
+    @SwaggerApiResponse({ status: HttpStatus.INTERNAL_SERVER_ERROR, description: 'Failed to update order.' })
+    async update(@Param('id') id: string, @Body() updatePesananDto: UpdatePesananDto) {
+      try {
+        const updatedPesanan = await this.pesananService.updatePesanan(parseInt(id, 10), updatePesananDto);
+        if (!updatedPesanan) {
+          throw new NotFoundException(`Pesanan with ID ${id} not found.`);
+        }
+        return updatedPesanan;
+      } catch (error) {
+        console.error(`Error updating pesanan with ID ${id}:`, error);
+        if (error instanceof NotFoundException || error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new InternalServerErrorException('Failed to update pesanan.');
+      }
     }
   
     @Delete(':id')
-    @HttpCode(HttpStatus.OK)
-    @ApiOperation({ summary: 'Menghapus pesanan' })
-    @ApiParam({ name: 'id', type: 'number', description: 'ID pesanan' })
-    @ApiResponse({
-      status: 200,
-      description: 'Pesanan berhasil dihapus',
-      schema: {
-        type: 'object',
-        properties: {
-          message: { type: 'string' }
+    @HttpCode(HttpStatus.NO_CONTENT)
+    @ApiOperation({ summary: 'Delete an order by ID' })
+    @SwaggerApiResponse({ status: HttpStatus.NO_CONTENT, description: 'The order has been successfully deleted.' })
+    @SwaggerApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Order not found.' })
+    @SwaggerApiResponse({ status: HttpStatus.INTERNAL_SERVER_ERROR, description: 'Failed to delete order.' })
+    async remove(@Param('id') id: string) {
+      try {
+        const deleted = await this.pesananService.removePesanan(parseInt(id, 10));
+        if (!deleted) {
+          throw new NotFoundException(`Pesanan with ID ${id} not found.`);
         }
+      } catch (error) {
+        if (error instanceof NotFoundException) {
+          throw error;
+        }
+        console.error(`Error deleting pesanan with ID ${id}:`, error);
+        throw new InternalServerErrorException('Failed to delete pesanan.');
       }
-    })
-    @ApiResponse({
-      status: 400,
-      description: 'Tidak dapat menghapus pesanan yang sedang berlangsung'
-    })
-    @ApiResponse({
-      status: 404,
-      description: 'Pesanan tidak ditemukan'
-    })
-    async remove(@Param('id', ParseIntPipe) id: number) {
-      return this.pesananService.remove(id);
-    }
-  
-    @Patch(':id/status')
-    @ApiOperation({ summary: 'Mengubah status pesanan' })
-    @ApiParam({ name: 'id', type: 'number', description: 'ID pesanan' })
-    @ApiBody({
-      schema: {
-        type: 'object',
-        properties: {
-          statusPesanan: {
-            type: 'string',
-            enum: ['pending', 'confirmed', 'ongoing', 'completed', 'cancelled']
-          }
-        },
-        required: ['statusPesanan']
-      }
-    })
-    @ApiResponse({
-      status: 200,
-      description: 'Status pesanan berhasil diubah',
-      type: PesananResponseDto
-    })
-    @ApiResponse({
-      status: 400,
-      description: 'Transisi status tidak diizinkan'
-    })
-    @ApiResponse({
-      status: 404,
-      description: 'Pesanan tidak ditemukan'
-    })
-    async updateStatus(
-      @Param('id', ParseIntPipe) id: number,
-      @Body('statusPesanan') statusPesanan: 'pending' | 'confirmed' | 'ongoing' | 'completed' | 'cancelled'
-    ): Promise<PesananResponseDto> {
-      return this.pesananService.update(id, { statusPesanan });
-    }
-  
-    @Get('user/:userId')
-    @ApiOperation({ summary: 'Mendapatkan pesanan berdasarkan user ID' })
-    @ApiParam({ name: 'userId', type: 'number', description: 'ID user' })
-    @ApiQuery({ name: 'statusPesanan', required: false, enum: ['pending', 'confirmed', 'ongoing', 'completed', 'cancelled'] })
-    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Halaman (default: 1)' })
-    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Jumlah data per halaman (default: 10)' })
-    @ApiResponse({
-      status: 200,
-      description: 'Daftar pesanan user berhasil diambil'
-    })
-    async findByUser(
-      @Param('userId', ParseIntPipe) userId: number,
-      @Query() query: Omit<QueryPesananDto, 'userId'>
-    ) {
-      return this.pesananService.findAll({ ...query, userId });
     }
   }

@@ -1,6 +1,6 @@
 // src/armada/dto/create-armada.dto.ts
 import { IsString, IsNumber, IsEnum, Min, Max, IsNotEmpty, IsOptional } from 'class-validator';
-import { StatusArmada } from '../database/entities/armada.entity'; // Import enum StatusArmada
+import { StatusArmada } from '../database/entities/armada.entity'; 
 
 export class CreateArmadaDto {
   @IsNotEmpty({ message: 'Jenis mobil tidak boleh kosong' })

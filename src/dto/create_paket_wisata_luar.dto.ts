@@ -1,83 +1,106 @@
-import { IsString, IsNotEmpty, IsInt, IsDecimal, IsEnum, IsOptional, ValidateNested, IsArray } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import {
+  IsString,
+  IsInt,
+  IsDecimal,
+  IsOptional,
+  IsEnum,
+  IsNotEmpty,
+  Min,
+  Max,
+  MaxLength,
+  IsISO8601,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum StatusPaket {
-  DRAFT = 'draft',
   AKTIF = 'aktif',
-  NON_AKTIF = 'non_aktif'
+  NON_AKTIF = 'non_aktif',
 }
 
 export class CreateDetailRuteDto {
-  @ApiProperty({ description: 'Urutan destinasi dalam rute' })
   @IsInt()
+  @Min(1)
   @Type(() => Number)
   urutanKe: number;
 
-  @ApiProperty({ description: 'Nama destinasi' })
   @IsString()
   @IsNotEmpty()
   namaDestinasi: string;
 
-  @ApiProperty({ description: 'Alamat destinasi' })
   @IsString()
   @IsNotEmpty()
   alamatDestinasi: string;
 
-  @ApiProperty({ description: 'Jarak dari destinasi sebelumnya (km)' })
+ 
+
   @IsInt()
+  @Min(0)
   @Type(() => Number)
   jarakDariSebelumnyaKm: number;
 
-  @ApiProperty({ description: 'Estimasi waktu tempuh (menit)' })
   @IsInt()
+  @Min(0)
   @Type(() => Number)
   estimasiWaktuTempuh: number;
 
-  @ApiProperty({ description: 'Waktu kunjungan (menit)' })
   @IsInt()
+  @Min(0)
   @Type(() => Number)
   waktuKunjunganMenit: number;
 
-  @ApiProperty({ description: 'Deskripsi singkat destinasi', required: false })
   @IsOptional()
   @IsString()
   deskripsiSingkat?: string;
 }
 
 export class CreatePaketWisataLuarKotaDto {
-  @ApiProperty({ description: 'Nama paket wisata' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   namaPaket: string;
 
-  @ApiProperty({ description: 'Tujuan utama wisata' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(100)
   tujuanUtama: string;
 
-  @ApiProperty({ description: 'Total jarak perjalanan (km)' })
   @IsInt()
+  @Min(0)
   @Type(() => Number)
   totalJarakKm: number;
 
-  @ApiProperty({ description: 'Estimasi durasi perjalanan (jam)' })
   @IsInt()
+  @Min(0)
   @Type(() => Number)
   estimasiDurasi: number;
 
-  @ApiProperty({ description: 'Harga estimasi paket' })
-  @IsDecimal()
-  @Transform(({ value }) => parseFloat(value))
-  hargaEstimasi: number;
+  @IsDecimal({ decimal_digits: '0,2' })
+  @IsNotEmpty()
+  hargaEstimasi: string;
 
-  @ApiProperty({ enum: StatusPaket, description: 'Status paket wisata' })
   @IsEnum(StatusPaket)
   statusPaket: StatusPaket;
+  @ApiProperty({ type: [String], example: ['image-1.jpg', 'image-2.jpg'] })
+  fotoPaketLuar: string[];
 
-  @ApiProperty({ type: [CreateDetailRuteDto], description: 'Detail rute perjalanan' })
-  @IsArray()
-  @ValidateNested({ each: true })
+  // Tambahan field untuk pemilihan tanggal
+  @IsISO8601() // Validasi format tanggal ISO8601 (e.g., "2025-07-10")
+  @IsNotEmpty()
+  pilihTanggal: string; // Input tanggal dari user sebagai string
+
+  @IsOptional()
+  @IsString()
+  durasi?: string;
+
+  @IsOptional()
+  @IsString()
+  deskripsi?: string;
+
+  @IsOptional()
+  @IsInt({ each: true }) // Memastikan setiap item dalam array adalah integer
+  fasilitasIds?: number[];
+
   @Type(() => CreateDetailRuteDto)
   detailRute: CreateDetailRuteDto[];
 }

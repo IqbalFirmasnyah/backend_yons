@@ -22,7 +22,7 @@ export class PaketWisataLuarKota {
   estimasiDurasi: number; // Updated to match Prisma schema
 
   @Column('decimal', { precision: 12, scale: 2, name: 'harga_estimasi' })
-  hargaEstimasi: number; // Updated to match Prisma schema
+  hargaEstimasi: number; // Updated to match Prisma schema 
 
   @Column({
     type: 'enum',

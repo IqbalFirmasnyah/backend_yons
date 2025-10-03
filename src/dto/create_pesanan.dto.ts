@@ -1,49 +1,44 @@
-import { IsInt, IsDateString, IsString, IsDecimal, IsOptional, Min } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsString, IsInt, IsOptional, IsDateString, Min } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class CreatePesananDto {
-  @ApiProperty({ description: 'ID User yang melakukan pesanan' })
+  @IsNotEmpty()
   @IsInt()
   @Type(() => Number)
-  userId: number;
+  userId: number; // User making the order
 
-  @ApiProperty({ description: 'ID Paket Wisata' })
+  @IsNotEmpty()
   @IsInt()
   @Type(() => Number)
-  paketId: number;
+  paketId: number; // The package ordered
 
-  @ApiProperty({ description: 'ID Supir' })
+  @IsNotEmpty()
   @IsInt()
   @Type(() => Number)
-  supirId: number;
+  supirId: number; // Driver assigned to the order
 
-  @ApiProperty({ description: 'ID Armada' })
+  @IsNotEmpty()
   @IsInt()
   @Type(() => Number)
-  armadaId: number;
+  armadaId: number; // Vehicle assigned to the order
 
-  @ApiProperty({ description: 'Tanggal mulai wisata', example: '2024-03-15' })
+  @IsNotEmpty()
   @IsDateString()
-  tanggalMulaiWisata: string;
+  tanggalMulaiWisata: string; // Start date of the trip
 
-  @ApiProperty({ description: 'Tanggal selesai wisata', example: '2024-03-17' })
+  @IsNotEmpty()
   @IsDateString()
-  tanggalSelesaiWisata: string;
+  tanggalSelesaiWisata: string; // End date of the trip
 
-  @ApiProperty({ description: 'Jumlah peserta', minimum: 1 })
+  @IsNotEmpty()
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  jumlahPeserta: number;
+  jumlahPeserta: number; // Number of participants
 
-  @ApiProperty({ description: 'Total harga pesanan', example: '1500000.00' })
-  @IsDecimal({ decimal_digits: '0,2' })
-  @Transform(({ value }) => parseFloat(value))
-  totalHarga: number;
-
-  @ApiPropertyOptional({ description: 'Catatan khusus untuk pesanan' })
   @IsOptional()
   @IsString()
-  catatanKhusus?: string;
+  catatanKhusus?: string; // Special notes for the order
+
+  // totalHarga and statusPesanan will be set/calculated by the service
 }

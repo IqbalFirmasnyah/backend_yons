@@ -1,59 +1,57 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsOptional, IsString, IsInt, IsDateString, IsDecimal, IsIn, Min } from 'class-validator';
+import { PartialType } from '@nestjs/mapped-types';
+import { IsOptional, IsInt, IsString, IsDateString, Min, ValidateIf } from 'class-validator';
 import { Type } from 'class-transformer';
+import { CreatePesananLuarKotaDto } from './create_pesanan_luar_kota.dto'; 
 
-export class UpdatePesananLuarKotaDto {
-  @ApiProperty({ description: 'ID supir', required: false })
+export class UpdatePesananLuarKotaDto extends PartialType(CreatePesananLuarKotaDto) {
+  
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @ValidateIf((o) => o.paketLuarKotaId === undefined) // Only validate fasilitasId if paketLuarKotaId is not present
+  fasilitasId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @ValidateIf((o) => o.fasilitasId === undefined) // Only validate paketLuarKotaId if fasilitasId is not present
+  paketLuarKotaId?: number;
+
   @IsOptional()
   @IsInt()
   @Type(() => Number)
   supirId?: number;
 
-  @ApiProperty({ description: 'ID armada', required: false })
   @IsOptional()
   @IsInt()
   @Type(() => Number)
   armadaId?: number;
 
-  @ApiProperty({ description: 'Input tujuan custom dari user', required: false })
   @IsOptional()
   @IsString()
   inputTujuanUser?: string;
 
-  @ApiProperty({ description: 'Tanggal mulai wisata', required: false })
   @IsOptional()
   @IsDateString()
   tanggalMulaiWisata?: string;
 
-  @ApiProperty({ description: 'Tanggal selesai wisata', required: false })
   @IsOptional()
   @IsDateString()
   tanggalSelesaiWisata?: string;
 
-  @ApiProperty({ description: 'Jumlah peserta', minimum: 1, required: false })
   @IsOptional()
   @IsInt()
   @Min(1)
   @Type(() => Number)
   jumlahPeserta?: number;
 
-  @ApiProperty({ description: 'Total harga final', required: false })
-  @IsOptional()
-  @IsDecimal()
-  totalHargaFinal?: number;
-
-  @ApiProperty({ 
-    description: 'Status pesanan', 
-    enum: ['pending', 'confirmed', 'ongoing', 'completed', 'cancelled'],
-    required: false 
-  })
-  @IsOptional()
-  @IsString()
-  @IsIn(['pending', 'confirmed', 'ongoing', 'completed', 'cancelled'])
-  statusPesanan?: string;
-
-  @ApiProperty({ description: 'Catatan khusus', required: false })
   @IsOptional()
   @IsString()
   catatanKhusus?: string;
+
+  // totalHargaFinal is typically calculated, not provided by client
+  // You might want to add a status update field here if it's part of the DTO
+  // @IsOptional()
+  // @IsEnum(PesananStatusEnum) // Assuming you have a PesananStatusEnum
+  // statusPesanan?: PesananStatusEnum;
 }

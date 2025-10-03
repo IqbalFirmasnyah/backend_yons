@@ -36,4 +36,24 @@ export class SupirService {
     await this.findOne(id); // check existence
     return this.prisma.supir.delete({ where: { supirId: id } });
   }
+
+  async getAvailableSupir(start: Date, end: Date) {
+    return this.prisma.supir.findMany({
+      where: {
+        NOT: {
+          booking: {
+            some: {
+              statusBooking: {
+                in: ["confirmed", "ongoing"],
+              },
+              AND: [
+                { tanggalMulaiWisata: { lte: end } },
+                { tanggalSelesaiWisata: { gte: start } },
+              ],
+            },
+          },
+        },
+      },
+    });
+  }
 }

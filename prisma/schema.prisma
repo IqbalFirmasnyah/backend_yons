@@ -7,88 +7,120 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  userId       Int      @id @default(autoincrement()) @map("user_id")
-  username     String   @unique @db.VarChar(50)
-  email        String   @unique @db.VarChar(100)
-  password     String   @db.VarChar(255)
-  namaLengkap  String   @map("nama_lengkap") @db.VarChar(100)
-  alamat       String   @db.Text
-  tanggalLahir DateTime @map("tanggal_lahir") @db.Date
-  noHp         String   @map("no_hp") @db.VarChar(15)
-  fotoProfil   String?  @map("foto_profil") @db.VarChar(255)
-  statusAktif  Boolean  @default(true) @map("status_aktif")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+model CustomRuteFasilitas {
+  customRuteId   Int       @id @default(autoincrement()) @map("custom_rute_id")
+  fasilitasId    Int       @map("fasilitas_id")
+  tujuanList     String    @map("tujuan_list") @db.Text // JSON atau serialized list
+  totalJarakKm   Int       @map("total_jarak_km")
+  estimasiDurasi Int       @map("estimasi_durasi")
+  tanggalMulai   DateTime  @map("tanggal_mulai") 
+  tanggalSelesai DateTime  @map("tanggal_selesai")
+  hargaEstimasi  Decimal   @map("harga_estimasi") @db.Decimal(12, 2)
+  catatanKhusus  String?   @map("catatan_khusus") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  fasilitas      Fasilitas @relation(fields: [fasilitasId], references: [fasilitasId], onDelete: Cascade)
 
+  @@map("custom_rute_fasilitas")
+}
+
+model Dropoff {
+  dropoffId      Int       @id @default(autoincrement()) @map("dropoff_id")
+  fasilitasId    Int       @unique @map("fasilitas_id")
+  namaTujuan     String    @map("nama_tujuan") @db.VarChar(100)
+  alamatTujuan   String    @map("alamat_tujuan") @db.Text
+  jarakKm        Int       @map("jarak_km")
+  estimasiDurasi Int       @map("estimasi_durasi")
+  
+  tanggalMulai   DateTime  @default(now()) @map("tanggal_mulai") // Tanggal Mulai
+  tanggalSelesai DateTime  @default(now()) @map("tanggal_selesai")
+  hargaEstimasi  Decimal   @map("harga_estimasi") @db.Decimal(12, 2)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  fasilitas      Fasilitas @relation(fields: [fasilitasId], references: [fasilitasId], onDelete: Cascade)
+
+  @@map("dropoff")
+}
+
+model User {
+  userId           Int                   @id @default(autoincrement()) @map("user_id")
+  username         String                @unique @db.VarChar(50)
+  email            String                @unique @db.VarChar(100)
+  password         String                @db.VarChar(255)
+  namaLengkap      String                @map("nama_lengkap") @db.VarChar(100)
+  alamat           String                @db.Text
+  tanggalLahir     DateTime              @map("tanggal_lahir") @db.Date
+  noHp             String                @map("no_hp") @db.VarChar(15)
+  fotoProfil       String?               @map("foto_profil") @db.VarChar(255)
+  statusAktif      Boolean               @default(true) @map("status_aktif")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
   // Relations
-  pesanan           Pesanan[]
-  pesananLuarKota   PesananLuarKota[] 
-  notifikasi        Notifikasi[]
-  pembayaran        Pembayaran[]
-  booking           Booking[]
-  refund            Refund[]
-  updateStatusUser  UpdateStatusBooking[] @relation("UpdateByUser")
+  pesanan          Pesanan[]
+  pesananLuarKota  PesananLuarKota[]
+  notifikasi       Notifikasi[]
+  pembayaran       Pembayaran[]
+  booking          Booking[]
+  refund           Refund[]
+  reschedules      Reschedule[]
+  updateStatusUser UpdateStatusBooking[] @relation("UpdateByUser")
 
   @@map("user")
 }
 
 model Admin {
-  adminId     Int      @id @default(autoincrement()) @map("admin_id")
-  username    String   @unique @db.VarChar(50)
-  email       String   @unique @db.VarChar(100)
-  password    String   @db.VarChar(255)
-  namaLengkap String   @map("nama_lengkap") @db.VarChar(100)
-  fotoProfil  String?  @map("foto_profil") @db.VarChar(255)
-  role        String   @db.VarChar(20) // 'super_admin', 'admin'
-  statusAktif Boolean  @default(true) @map("status_aktif")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
+  adminId            Int                   @id @default(autoincrement()) @map("admin_id")
+  username           String                @unique @db.VarChar(50)
+  email              String                @unique @db.VarChar(100)
+  password           String                @db.VarChar(255)
+  namaLengkap        String                @map("nama_lengkap") @db.VarChar(100)
+  fotoProfil         String?               @map("foto_profil") @db.VarChar(255)
+  role               String                @db.VarChar(20) // 'super_admin', 'admin'
+  statusAktif        Boolean               @default(true) @map("status_aktif")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
   // Relations
   notifikasi         Notifikasi[]
   pembayaranVerified Pembayaran[]
-  refundApproved     Refund[]         @relation("RefundApprovedBy")
-  refundProcessed    Refund[]         @relation("RefundProcessedBy")
+  refundApproved     Refund[]              @relation("RefundApprovedBy")
+  refundProcessed    Refund[]              @relation("RefundProcessedBy")
   updateStatusAdmin  UpdateStatusBooking[] @relation("UpdateByAdmin")
 
   @@map("admin")
 }
 
 model Armada {
-  armadaId       Int      @id @default(autoincrement()) @map("armada_id")
-  jenisMobil     String   @map("jenis_mobil") @db.VarChar(50)
-  merkMobil      String   @map("merk_mobil") @db.VarChar(50)
-  platNomor      String   @unique @map("plat_nomor") @db.VarChar(15)
-  kapasitas      Int
-  tahunKendaraan Int      @map("tahun_kendaraan")
-  statusArmada   String   @map("status_armada") @db.VarChar(20) // 'tersedia', 'digunakan', 'maintenance'
-  fotoArmada     String?  @map("foto_armada") @db.VarChar(255)
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
+  armadaId        Int                     @id @default(autoincrement()) @map("armada_id")
+  jenisMobil      String                  @map("jenis_mobil") @db.VarChar(50)
+  merkMobil       String                  @map("merk_mobil") @db.VarChar(50)
+  platNomor       String                  @unique @map("plat_nomor") @db.VarChar(15)
+  kapasitas       Int
+  tahunKendaraan  Int                     @map("tahun_kendaraan")
+  statusArmada    String                  @map("status_armada") @db.VarChar(20) // 'tersedia', 'digunakan', 'maintenance'
+  fotoArmada      String?                 @map("foto_armada") @db.VarChar(255)
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
   // Relations
-  pesanan             Pesanan[]
-  pesananLuarKota     PesananLuarKota[]
-  assignmentSupir     AssignmentSupirArmada[]
-  booking             Booking[]
+  pesanan         Pesanan[]
+  pesananLuarKota PesananLuarKota[]
+  assignmentSupir AssignmentSupirArmada[]
+  booking         Booking[]
 
   @@map("armada")
 }
 
 model Supir {
-  supirId         Int      @id @default(autoincrement()) @map("supir_id")
-  nama            String   @db.VarChar(100)
-  alamat          String   @db.Text
-  nomorHp         String   @map("nomor_hp") @db.VarChar(15)
-  nomorSim        String   @map("nomor_sim") @db.VarChar(20)
-  fotoSupir       String?  @map("foto_supir") @db.VarChar(255)
-  pengalamanTahun Int      @map("pengalaman_tahun")
-  ratingRata      Decimal? @map("rating_rata") @db.Decimal(3, 2)
-  statusSupir     String   @map("status_supir") @db.VarChar(20) // 'tersedia', 'bertugas', 'off'
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
+  supirId         Int                     @id @default(autoincrement()) @map("supir_id")
+  nama            String                  @db.VarChar(100)
+  alamat          String                  @db.Text
+  nomorHp         String                  @map("nomor_hp") @db.VarChar(15)
+  nomorSim        String                  @map("nomor_sim") @db.VarChar(20)
+  fotoSupir       String?                 @map("foto_supir") @db.VarChar(255)
+  pengalamanTahun Int                     @map("pengalaman_tahun")
+  ratingRata      Decimal?                @map("rating_rata") @db.Decimal(3, 2)
+  statusSupir     String                  @map("status_supir") @db.VarChar(20) // 'tersedia', 'bertugas', 'off'
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
   // Relations
   pesanan         Pesanan[]
   pesananLuarKota PesananLuarKota[]
@@ -99,68 +131,90 @@ model Supir {
 }
 
 model PaketWisata {
-  paketId      Int      @id @default(autoincrement()) @map("paket_id")
-  namaPaket    String   @map("nama_paket") @db.VarChar(100)
-  namaTempat   String   @map("nama_tempat") @db.VarChar(100)
-  lokasi       String   @db.VarChar(200)
-  deskripsi    String   @db.Text
-  itinerary    String   @db.Text
-  jarakKm      Int      @map("jarak_km")
-  durasiHari   Int      @map("durasi_hari")
-  harga        Decimal  @db.Decimal(12, 2)
-  fotoPaket    String?  @map("foto_paket") @db.VarChar(255)
-  kategori     String   @db.VarChar(20) // 'dalam_kota', 'luar_kota'
-  statusPaket  String   @map("status_paket") @db.VarChar(20) // 'aktif', 'non_aktif'
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-
+  paketId      Int       @id @default(autoincrement()) @map("paket_id")
+  namaPaket    String    @map("nama_paket") @db.VarChar(100)
+  namaTempat   String    @map("nama_tempat") @db.VarChar(100)
+  lokasi       String    @db.VarChar(200)
+  deskripsi    String    @db.Text
+  itinerary    String    @db.Text
+  jarakKm      Int       @map("jarak_km")
+  durasiHari   Int       @map("durasi_hari")
+  pilihTanggal DateTime  @default(now()) @map("pilih_tanggal")
+  harga        Decimal   @db.Decimal(12, 2)
+  fotoPaket    String?   @map("foto_paket") @db.VarChar(255)
+  images       String[] 
+  kategori     String    @db.VarChar(20) // 'dalam_kota', 'luar_kota'
+  statusPaket  String    @map("status_paket") @db.VarChar(20) // 'aktif', 'non_aktif'
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
   // Relations
-  pesanan Pesanan[]
-  booking Booking[]
+  pesanan      Pesanan[]
+  booking      Booking[]
 
   @@map("paket_wisata")
 }
 
 model Pesanan {
-  pesananId           Int      @id @default(autoincrement()) @map("pesanan_id")
-  userId              Int      @map("user_id")
-  paketId             Int      @map("paket_id")
-  supirId             Int      @map("supir_id")
-  armadaId            Int      @map("armada_id")
-  tanggalPesan        DateTime @map("tanggal_pesan")
-  tanggalMulaiWisata  DateTime @map("tanggal_mulai_wisata")
-  tanggalSelesaiWisata DateTime @map("tanggal_selesai_wisata")
-  jumlahPeserta       Int      @map("jumlah_peserta")
-  totalHarga          Decimal  @map("total_harga") @db.Decimal(12, 2)
-  statusPesanan       String   @map("status_pesanan") @db.VarChar(20) // 'pending', 'confirmed', 'ongoing', 'completed', 'cancelled'
-  catatanKhusus       String?  @map("catatan_khusus") @db.Text
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
-
+  pesananId            Int          @id @default(autoincrement()) @map("pesanan_id")
+  userId               Int          @map("user_id")
+  paketId              Int          @map("paket_id")
+  supirId              Int          @map("supir_id")
+  armadaId             Int          @map("armada_id")
+  tanggalPesan         DateTime     @map("tanggal_pesan")
+  tanggalMulaiWisata   DateTime     @map("tanggal_mulai_wisata")
+  tanggalSelesaiWisata DateTime     @map("tanggal_selesai_wisata")
+  jumlahPeserta        Int          @map("jumlah_peserta")
+  totalHarga           Decimal      @map("total_harga") @db.Decimal(12, 2)
+  statusPesanan        String       @map("status_pesanan") @db.VarChar(20) // 'pending', 'confirmed', 'ongoing', 'completed', 'cancelled'
+  catatanKhusus        String?      @map("catatan_khusus") @db.Text
+  createdAt            DateTime     @default(now()) @map("created_at")
+  updatedAt            DateTime     @updatedAt @map("updated_at")
   // Relations
-  user       User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  paket      PaketWisata  @relation(fields: [paketId], references: [paketId], onDelete: Cascade)
-  supir      Supir        @relation(fields: [supirId], references: [supirId], onDelete: Cascade)
-  armada     Armada       @relation(fields: [armadaId], references: [armadaId], onDelete: Cascade)
-  notifikasi Notifikasi[]
-  pembayaran Pembayaran[]
-  refund     Refund[]
+  user                 User         @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  paket                PaketWisata  @relation(fields: [paketId], references: [paketId], onDelete: Cascade)
+  supir                Supir        @relation(fields: [supirId], references: [supirId], onDelete: Cascade)
+  armada               Armada       @relation(fields: [armadaId], references: [armadaId], onDelete: Cascade)
+  notifikasi           Notifikasi[]
+  pembayaran           Pembayaran[]
+  refund               Refund[]
 
   @@map("pesanan")
+}
+
+model Fasilitas {
+  fasilitasId    Int      @id @default(autoincrement()) @map("fasilitas_id")
+  jenisFasilitas String   @db.VarChar(30)
+  namaFasilitas  String   @db.VarChar(100)
+  deskripsi      String?  @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  paketLuarKotaId Int?                 @unique @map("paket_luar_kota_id")
+  paketLuarKota   PaketWisataLuarKota? @relation(name: "FasilitasToPaketWisataLuarKota", fields: [paketLuarKotaId], references: [paketLuarKotaId], onDelete: SetNull)
+
+  dropoff         Dropoff?
+  customRute      CustomRuteFasilitas[]
+  bookings        Booking[]
+  pesananLuarKota PesananLuarKota[]
+
+  @@map("fasilitas")
 }
 
 model PaketWisataLuarKota {
   paketLuarKotaId Int      @id @default(autoincrement()) @map("paket_luar_kota_id")
   namaPaket       String   @map("nama_paket") @db.VarChar(100)
   tujuanUtama     String   @map("tujuan_utama") @db.VarChar(100)
+  fotoPaketLuar   String[]
   totalJarakKm    Int      @map("total_jarak_km")
-  estimasiDurasi  Int      @map("estimasi_durasi") // dalam jam
+  estimasiDurasi  Int      @map("estimasi_durasi")
   hargaEstimasi   Decimal  @map("harga_estimasi") @db.Decimal(12, 2)
-  statusPaket     String   @map("status_paket") @db.VarChar(20) // 'draft', 'aktif', 'non_aktif'
+  statusPaket     String   @map("status_paket") @db.VarChar(20)
+  pilihTanggal    DateTime @default(now()) @map("pilih_tanggal")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  // Relations
+  fasilitas Fasilitas? @relation(name: "FasilitasToPaketWisataLuarKota")
+
   detailRute      DetailRuteLuarKota[]
   pesananLuarKota PesananLuarKota[]
   booking         Booking[]
@@ -169,152 +223,152 @@ model PaketWisataLuarKota {
 }
 
 model DetailRuteLuarKota {
-  ruteId                 Int      @id @default(autoincrement()) @map("rute_id")
-  paketLuarKotaId        Int      @map("paket_luar_kota_id")
-  urutanKe               Int      @map("urutan_ke")
-  namaDestinasi          String   @map("nama_destinasi") @db.VarChar(100)
-  alamatDestinasi        String   @map("alamat_destinasi") @db.Text
-  jarakDariSebelumnyaKm  Int      @map("jarak_dari_sebelumnya_km")
-  estimasiWaktuTempuh    Int      @map("estimasi_waktu_tempuh") // dalam menit
-  waktuKunjunganMenit    Int      @map("waktu_kunjungan_menit")
-  deskripsiSingkat       String?  @map("deskripsi_singkat") @db.Text
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
-
-  // Relations
-  paketLuarKota PaketWisataLuarKota @relation(fields: [paketLuarKotaId], references: [paketLuarKotaId], onDelete: Cascade)
+  ruteId                Int                 @id @default(autoincrement()) @map("rute_id")
+  paketLuarKotaId       Int                 @map("paket_luar_kota_id")
+  urutanKe              Int                 @map("urutan_ke")
+  namaDestinasi         String              @map("nama_destinasi") @db.VarChar(100)
+  alamatDestinasi       String              @map("alamat_destinasi") @db.Text
+  jarakDariSebelumnyaKm Int                 @map("jarak_dari_sebelumnya_km")
+  estimasiWaktuTempuh   Int                 @map("estimasi_waktu_tempuh") // dalam menit
+  waktuKunjunganMenit   Int                 @map("waktu_kunjungan_menit")
+  deskripsiSingkat      String?             @map("deskripsi_singkat") @db.Text
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  paketLuarKota         PaketWisataLuarKota @relation(fields: [paketLuarKotaId], references: [paketLuarKotaId], onDelete: Cascade)
 
   @@map("detail_rute_luar_kota")
 }
 
 model PesananLuarKota {
-  pesananLuarKotaId    Int      @id @default(autoincrement()) @map("pesanan_luar_kota_id")
-  userId               Int      @map("user_id")
-  paketLuarKotaId      Int      @map("paket_luar_kota_id")
-  supirId              Int      @map("supir_id")
-  armadaId             Int      @map("armada_id")
-  inputTujuanUser      String?  @map("input_tujuan_user") @db.Text // JSON or text
-  tanggalPesan         DateTime @map("tanggal_pesan")
-  tanggalMulaiWisata   DateTime @map("tanggal_mulai_wisata")
-  tanggalSelesaiWisata DateTime @map("tanggal_selesai_wisata")
-  jumlahPeserta        Int      @map("jumlah_peserta")
-  totalHargaFinal      Decimal  @map("total_harga_final") @db.Decimal(12, 2)
-  statusPesanan        String   @map("status_pesanan") @db.VarChar(20) // 'pending', 'confirmed', 'ongoing', 'completed', 'cancelled'
-  catatanKhusus        String?  @map("catatan_khusus") @db.Text
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
-
+  pesananLuarKotaId    Int                  @id @default(autoincrement()) @map("pesanan_luar_kota_id")
+  userId               Int                  @map("user_id")
+  paketLuarKotaId      Int?                 @map("paket_luar_kota_id") // Can link to a pre-defined PaketWisataLuarKota
+  fasilitasId          Int?                 @map("fasilitas_id") // Can link to a custom Fasilitas (e.g., custom route)
+  supirId              Int                  @map("supir_id")
+  armadaId             Int                  @map("armada_id")
+  inputTujuanUser      String?              @map("input_tujuan_user") @db.Text // JSON or text for custom input
+  tanggalPesan         DateTime             @map("tanggal_pesan")
+  tanggalMulaiWisata   DateTime             @map("tanggal_mulai_wisata")
+  tanggalSelesaiWisata DateTime             @map("tanggal_selesai_wisata")
+  jumlahPeserta        Int                  @map("jumlah_peserta")
+  totalHargaFinal      Decimal              @map("total_harga_final") @db.Decimal(12, 2)
+  statusPesanan        String               @map("status_pesanan") @db.VarChar(20) // 'pending', 'confirmed', 'ongoing', 'completed', 'cancelled'
+  catatanKhusus        String?              @map("catatan_khusus") @db.Text
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
   // Relations
-  user            User                @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  paketLuarKota   PaketWisataLuarKota @relation(fields: [paketLuarKotaId], references: [paketLuarKotaId], onDelete: Cascade)
-  supir           Supir               @relation(fields: [supirId], references: [supirId], onDelete: Cascade)
-  armada          Armada              @relation(fields: [armadaId], references: [armadaId], onDelete: Cascade)
-  notifikasi      Notifikasi[]
-  pembayaran      Pembayaran[]
-  refund          Refund[]
+  user                 User                 @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  paketLuarKota        PaketWisataLuarKota? @relation(fields: [paketLuarKotaId], references: [paketLuarKotaId], onDelete: SetNull)
+  fasilitas            Fasilitas?           @relation(fields: [fasilitasId], references: [fasilitasId], onDelete: SetNull)
+  supir                Supir                @relation(fields: [supirId], references: [supirId], onDelete: Cascade)
+  armada               Armada               @relation(fields: [armadaId], references: [armadaId], onDelete: Cascade)
+  notifikasi           Notifikasi[]
+  pembayaran           Pembayaran[]
+  refund               Refund[]
 
   @@map("pesanan_luar_kota")
 }
 
 model AssignmentSupirArmada {
-  assignmentId            Int       @id @default(autoincrement()) @map("assignment_id")
-  supirId                 Int       @map("supir_id")
-  armadaId                Int       @map("armada_id")
-  tanggalMulaiAssignment  DateTime  @map("tanggal_mulai_assignment")
+  assignmentId             Int       @id @default(autoincrement()) @map("assignment_id")
+  supirId                  Int       @map("supir_id")
+  armadaId                 Int       @map("armada_id")
+  tanggalMulaiAssignment   DateTime  @map("tanggal_mulai_assignment")
   tanggalSelesaiAssignment DateTime? @map("tanggal_selesai_assignment")
-  status                  String    @db.VarChar(20) // 'aktif', 'selesai'
-  createdAt               DateTime  @default(now()) @map("created_at")
-  updatedAt               DateTime  @updatedAt @map("updated_at")
-
+  status                   String    @db.VarChar(20) // 'aktif', 'selesai'
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
   // Relations
-  supir  Supir  @relation(fields: [supirId], references: [supirId], onDelete: Cascade)
-  armada Armada @relation(fields: [armadaId], references: [armadaId], onDelete: Cascade)
+  supir                    Supir     @relation(fields: [supirId], references: [supirId], onDelete: Cascade)
+  armada                   Armada    @relation(fields: [armadaId], references: [armadaId], onDelete: Cascade)
 
   @@map("assignment_supir_armada")
 }
 
 model Notifikasi {
-  notifikasiId       Int      @id @default(autoincrement()) @map("notifikasi_id")
-  userId             Int?     @map("user_id")
-  adminId            Int?     @map("admin_id")
-  pesananId          Int?     @map("pesanan_id")
-  pesananLuarKotaId  Int?     @map("pesanan_luar_kota_id")
-  bookingId          Int?     @map("booking_id")        // ✅ Tambah ini
-  refundId           Int?     @map("refund_id")         // ✅ Tambah ini
-  tipeNotifikasi     String   @map("tipe_notifikasi") @db.VarChar(50)
-  judulNotifikasi    String   @map("judul_notifikasi") @db.VarChar(200)
-  deskripsi          String   @db.Text
-  isRead             Boolean  @default(false) @map("is_read")
-  tanggalNotifikasi  DateTime @map("tanggal_notifikasi")
-  createdAt          DateTime @default(now()) @map("created_at")
-
+  notifikasiId      Int              @id @default(autoincrement()) @map("notifikasi_id")
+  userId            Int?             @map("user_id")
+  adminId           Int?             @map("admin_id")
+  pesananId         Int?             @map("pesanan_id")
+  pesananLuarKotaId Int?             @map("pesanan_luar_kota_id")
+  bookingId         Int?             @map("booking_id")
+  refundId          Int?             @map("refund_id")
+  tipeNotifikasi    String           @map("tipe_notifikasi") @db.VarChar(50)
+  judulNotifikasi   String           @map("judul_notifikasi") @db.VarChar(200)
+  deskripsi         String           @db.Text
+  isRead            Boolean          @default(false) @map("is_read")
+  tanggalNotifikasi DateTime         @map("tanggal_notifikasi")
+  createdAt         DateTime         @default(now()) @map("created_at")
   // Relations
-  user              User?             @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  admin             Admin?            @relation(fields: [adminId], references: [adminId], onDelete: Cascade)
-  pesanan           Pesanan?          @relation(fields: [pesananId], references: [pesananId], onDelete: Cascade)
-  pesananLuarKota   PesananLuarKota?  @relation(fields: [pesananLuarKotaId], references: [pesananLuarKotaId], onDelete: Cascade)
-  booking           Booking?          @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade) // ✅ Tambah ini
-  refund            Refund?           @relation(fields: [refundId], references: [refundId], onDelete: Cascade)   // ✅ Tambah ini
+  user              User?            @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  admin             Admin?           @relation(fields: [adminId], references: [adminId], onDelete: Cascade)
+  pesanan           Pesanan?         @relation(fields: [pesananId], references: [pesananId], onDelete: Cascade)
+  pesananLuarKota   PesananLuarKota? @relation(fields: [pesananLuarKotaId], references: [pesananLuarKotaId], onDelete: Cascade)
+  booking           Booking?         @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
+  refund            Refund?          @relation(fields: [refundId], references: [refundId], onDelete: Cascade)
 
   @@map("notifikasi")
 }
 
-
 model Pembayaran {
-  pembayaranId      Int      @id @default(autoincrement()) @map("pembayaran_id")
-  pesananId         Int?     @map("pesanan_id")
-  pesananLuarKotaId Int?     @map("pesanan_luar_kota_id")
-  userId            Int      @map("user_id")
-  metodePembayaran  String   @map("metode_pembayaran") @db.VarChar(20) // 'transfer', 'cash', 'e-wallet'
-  jumlahBayar       Decimal  @map("jumlah_bayar") @db.Decimal(12, 2)
-  tanggalPembayaran DateTime @map("tanggal_pembayaran")
-  buktiPembayaran   String?  @map("bukti_pembayaran") @db.VarChar(255)
-  statusPembayaran  String   @map("status_pembayaran") @db.VarChar(20) // 'pending', 'verified', 'rejected'
-  verifiedByAdminId Int?     @map("verified_by_admin_id")
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
+  pembayaranId      Int              @id @default(autoincrement()) @map("pembayaran_id")
+  pesananId         Int?             @map("pesanan_id")
+  pesananLuarKotaId Int?             @map("pesanan_luar_kota_id")
+  userId            Int              @map("user_id")
+  bookingId         Int?             @unique @map("booking_id")
+  metodePembayaran  String           @map("metode_pembayaran") @db.VarChar(20) // 'transfer', 'cash', 'e-wallet'
+  jumlahBayar       Decimal          @map("jumlah_bayar") @db.Decimal(12, 2)
+  tanggalPembayaran DateTime         @map("tanggal_pembayaran")
+  buktiPembayaran   String?          @map("bukti_pembayaran") @db.VarChar(255)
+  statusPembayaran  String           @map("status_pembayaran") @db.VarChar(20) // 'pending', 'verified', 'rejected'
+  verifiedByAdminId Int?             @map("verified_by_admin_id")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
   // Relations
-  user              User?             @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  pesanan           Pesanan?          @relation(fields: [pesananId], references: [pesananId], onDelete: Cascade)
-  pesananLuarKota   PesananLuarKota?  @relation(fields: [pesananLuarKotaId], references: [pesananLuarKotaId], onDelete: Cascade)
-  verifiedByAdmin   Admin?            @relation(fields: [verifiedByAdminId], references: [adminId], onDelete: SetNull)
+  user              User?            @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  pesanan           Pesanan?         @relation(fields: [pesananId], references: [pesananId], onDelete: Cascade)
+  pesananLuarKota   PesananLuarKota? @relation(fields: [pesananLuarKotaId], references: [pesananLuarKotaId], onDelete: Cascade)
+  verifiedByAdmin   Admin?           @relation(fields: [verifiedByAdminId], references: [adminId], onDelete: SetNull)
+  booking           Booking?         @relation(fields: [bookingId], references: [bookingId])
   refund            Refund[]
 
   @@map("pembayaran")
 }
 
 model Booking {
-  bookingId           Int       @id @default(autoincrement()) @map("booking_id")
-  userId              Int       @map("user_id")
-  paketId             Int?      @map("paket_id")
-  paketLuarKotaId     Int?      @map("paket_luar_kota_id")
-  supirId             Int?      @map("supir_id")
-  armadaId            Int?      @map("armada_id")
-  kodeBooking         String    @unique @map("kode_booking") @db.VarChar(20)
-  tanggalBooking      DateTime  @map("tanggal_booking")
-  tanggalMulaiWisata  DateTime  @map("tanggal_mulai_wisata")
-  tanggalSelesaiWisata DateTime @map("tanggal_selesai_wisata")
-  jumlahPeserta       Int       @map("jumlah_peserta")
-  estimasiHarga       Decimal   @map("estimasi_harga") @db.Decimal(12, 2)
-  inputCustomTujuan   String?   @map("input_custom_tujuan") @db.Text
-  statusBooking       String    @map("status_booking") @db.VarChar(30) // 'draft', 'pending_payment', 'payment_verified', 'confirmed', 'expired', 'cancelled'
-  catatanKhusus       String?   @map("catatan_khusus") @db.Text
-  expiredAt           DateTime  @map("expired_at")
-  createdAt           DateTime  @default(now()) @map("created_at")
-  updatedAt           DateTime  @updatedAt @map("updated_at")
-
+  bookingId            Int                   @id @default(autoincrement()) @map("booking_id")
+  userId               Int                   @map("user_id")
+  paketId              Int?                  @map("paket_id")
+  paketLuarKotaId      Int?                  @map("paket_luar_kota_id")
+  fasilitasId          Int?                  @map("fasilitas_id") // Can link to a custom Fasilitas (e.g., custom route, dropoff)
+  supirId              Int                   @map("supir_id")
+  armadaId             Int                   @map("armada_id")
+  kodeBooking          String                @unique @map("kode_booking") @db.VarChar(20)
+  tanggalBooking       DateTime              @map("tanggal_booking")
+  tanggalMulaiWisata   DateTime              @map("tanggal_mulai_wisata")
+  tanggalSelesaiWisata DateTime              @map("tanggal_selesai_wisata")
+  jumlahPeserta        Int                   @map("jumlah_peserta")
+  estimasiHarga        Decimal               @map("estimasi_harga") @db.Decimal(12, 2)
+  inputCustomTujuan    String?               @map("input_custom_tujuan") @db.Text
+  statusBooking        String                @map("status_booking") @db.VarChar(30) // 'draft', 'pending_payment', 'payment_verified', 'confirmed', 'expired', 'cancelled'
+  catatanKhusus        String?               @map("catatan_khusus") @db.Text
+  expiredAt            DateTime              @map("expired_at")
+  createdAt            DateTime              @default(now()) @map("created_at")
+  updatedAt            DateTime              @updatedAt @map("updated_at")
   // Relations
-  user              User                  @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  paket             PaketWisata?          @relation(fields: [paketId], references: [paketId], onDelete: SetNull)
-  paketLuarKota     PaketWisataLuarKota?  @relation(fields: [paketLuarKotaId], references: [paketLuarKotaId], onDelete: SetNull)
-  supir             Supir?                @relation(fields: [supirId], references: [supirId], onDelete: SetNull)
-  armada            Armada?               @relation(fields: [armadaId], references: [armadaId], onDelete: SetNull)
-  updateStatus      UpdateStatusBooking[]
-  refund            Refund[]
+  user                 User                  @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  paket                PaketWisata?          @relation(fields: [paketId], references: [paketId], onDelete: SetNull)
+  paketLuarKota        PaketWisataLuarKota?  @relation(fields: [paketLuarKotaId], references: [paketLuarKotaId], onDelete: SetNull)
+  fasilitas            Fasilitas?            @relation(fields: [fasilitasId], references: [fasilitasId], onDelete: SetNull)
+  supir                Supir?                @relation(fields: [supirId], references: [supirId], onDelete: SetNull)
+  armada               Armada?               @relation(fields: [armadaId], references: [armadaId], onDelete: SetNull)
+  updateStatus         UpdateStatusBooking[]
+  refund               Refund[]
+  notifikasi           Notifikasi[]
+  pembayaran           Pembayaran?
+  reschedules          Reschedule[]
 
   @@map("booking")
-  Notifikasi Notifikasi[]
 }
 
 model UpdateStatusBooking {
@@ -327,49 +381,69 @@ model UpdateStatusBooking {
   keterangan       String?  @db.Text
   timestampUpdate  DateTime @map("timestamp_update")
   createdAt        DateTime @default(now()) @map("created_at")
-
   // Relations
-  booking       Booking @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
-  updatedByUser User?   @relation("UpdateByUser", fields: [updatedByUserId], references: [userId], onDelete: SetNull)
-  updatedByAdmin Admin? @relation("UpdateByAdmin", fields: [updatedByAdminId], references: [adminId], onDelete: SetNull)
+  booking          Booking  @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
+  updatedByUser    User?    @relation("UpdateByUser", fields: [updatedByUserId], references: [userId], onDelete: SetNull)
+  updatedByAdmin   Admin?   @relation("UpdateByAdmin", fields: [updatedByAdminId], references: [adminId], onDelete: SetNull)
 
   @@map("update_status_booking")
 }
 
 model Refund {
-  refundId              Int       @id @default(autoincrement()) @map("refund_id")
-  pesananId             Int?      @map("pesanan_id")
-  pesananLuarKotaId     Int?      @map("pesanan_luar_kota_id")
-  bookingId             Int?      @map("booking_id")
-  pembayaranId          Int       @map("pembayaran_id")
-  userId                Int       @map("user_id")
-  kodeRefund            String    @unique @map("kode_refund") @db.VarChar(20)
-  alasanRefund          String    @map("alasan_refund") @db.Text
-  jumlahRefund          Decimal   @map("jumlah_refund") @db.Decimal(12, 2)
-  jumlahPotonganAdmin   Decimal   @map("jumlah_potongan_admin") @db.Decimal(12, 2)
-  jumlahRefundFinal     Decimal   @map("jumlah_refund_final") @db.Decimal(12, 2)
-  metodeRefund          String    @map("metode_refund") @db.VarChar(20) // 'transfer_bank', 'e-wallet', 'cash'
-  rekeningTujuan        String?   @map("rekening_tujuan") @db.Text // JSON untuk data rekening
-  statusRefund          String    @map("status_refund") @db.VarChar(20) // 'pending', 'approved', 'processing', 'completed', 'rejected'
-  tanggalPengajuan      DateTime  @map("tanggal_pengajuan")
-  tanggalDisetujui      DateTime? @map("tanggal_disetujui")
-  tanggalRefundSelesai  DateTime? @map("tanggal_refund_selesai")
-  approvedByAdminId     Int?      @map("approved_by_admin_id")
-  processedByAdminId    Int?      @map("processed_by_admin_id")
-  buktiRefund           String?   @map("bukti_refund") @db.VarChar(255)
-  catatanAdmin          String?   @map("catatan_admin") @db.Text
-  createdAt             DateTime  @default(now()) @map("created_at")
-  updatedAt             DateTime  @updatedAt @map("updated_at")
-
+  refundId             Int              @id @default(autoincrement()) @map("refund_id")
+  pesananId            Int?             @map("pesanan_id")
+  pesananLuarKotaId    Int?             @map("pesanan_luar_kota_id")
+  bookingId            Int?             @map("booking_id")
+  pembayaranId         Int              @map("pembayaran_id")
+  userId               Int              @map("user_id")
+  kodeRefund           String           @unique @map("kode_refund") @db.VarChar(20)
+  alasanRefund         String           @map("alasan_refund") @db.Text
+  jumlahRefund         Decimal          @map("jumlah_refund") @db.Decimal(12, 2)
+  jumlahPotonganAdmin  Decimal          @map("jumlah_potongan_admin") @db.Decimal(12, 2)
+  jumlahRefundFinal    Decimal          @map("jumlah_refund_final") @db.Decimal(12, 2)
+  metodeRefund         String           @map("metode_refund") @db.VarChar(20) // 'transfer_bank', 'e-wallet', 'cash'
+  rekeningTujuan       String?          @map("rekening_tujuan") @db.Text // JSON untuk data rekening
+  statusRefund         String           @map("status_refund") @db.VarChar(20) // 'pending', 'approved', 'processing', 'completed', 'rejected'
+  tanggalPengajuan     DateTime         @map("tanggal_pengajuan")
+  tanggalDisetujui     DateTime?        @map("tanggal_disetujui")
+  tanggalRefundSelesai DateTime?        @map("tanggal_refund_selesai")
+  approvedByAdminId    Int?             @map("approved_by_admin_id")
+  processedByAdminId   Int?             @map("processed_by_admin_id")
+  buktiRefund          String?          @map("bukti_refund") @db.VarChar(255)
+  catatanAdmin         String?          @map("catatan_admin") @db.Text
+  createdAt            DateTime         @default(now()) @map("created_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
   // Relations
-  user                User?             @relation(fields: [userId], references: [userId], onDelete: Cascade)
-  pesanan             Pesanan?          @relation(fields: [pesananId], references: [pesananId], onDelete: SetNull)
-  pesananLuarKota     PesananLuarKota?  @relation(fields: [pesananLuarKotaId], references: [pesananLuarKotaId], onDelete: SetNull)
-  booking             Booking?          @relation(fields: [bookingId], references: [bookingId], onDelete: SetNull)
-  pembayaran          Pembayaran        @relation(fields: [pembayaranId], references: [pembayaranId], onDelete: Cascade)
-  approvedByAdmin     Admin?            @relation("RefundApprovedBy", fields: [approvedByAdminId], references: [adminId], onDelete: SetNull)
-  processedByAdmin    Admin?            @relation("RefundProcessedBy", fields: [processedByAdminId], references: [adminId], onDelete: SetNull)
+  user                 User?            @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  pesanan              Pesanan?         @relation(fields: [pesananId], references: [pesananId], onDelete: SetNull)
+  pesananLuarKota      PesananLuarKota? @relation(fields: [pesananLuarKotaId], references: [pesananLuarKotaId], onDelete: SetNull)
+  booking              Booking?         @relation(fields: [bookingId], references: [bookingId], onDelete: SetNull)
+  pembayaran           Pembayaran       @relation(fields: [pembayaranId], references: [pembayaranId], onDelete: Cascade)
+  approvedByAdmin      Admin?           @relation("RefundApprovedBy", fields: [approvedByAdminId], references: [adminId], onDelete: SetNull)
+  processedByAdmin     Admin?           @relation("RefundProcessedBy", fields: [processedByAdminId], references: [adminId], onDelete: SetNull)
+  notifikasi           Notifikasi[]
 
   @@map("refund")
-  Notifikasi Notifikasi[]
+}
+
+model Reschedule {
+  rescheduleId Int      @id @default(autoincrement()) @map("reschedule_id")
+  bookingId    Int      @map("booking_id")
+  userId       Int      @map("user_id")
+  tanggalLama  DateTime @map("tanggal_lama")
+  tanggalBaru  DateTime @map("tanggal_baru")
+  alasan       String   @db.Text
+  status       String   @map("status_reschedule") @db.VarChar(20) // 'pending', 'approved', 'rejected'
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relasi
+  booking Booking @relation(fields: [bookingId], references: [bookingId], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [userId], onDelete: Cascade)
+
+  // Opsi
+  // paketId           Int?
+  // paketWisataLuarKotaId Int?
+
+  @@map("reschedule")
 }

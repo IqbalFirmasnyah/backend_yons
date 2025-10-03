@@ -1,423 +1,156 @@
-// pesanan.service.ts
-import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreatePesananDto } from '../dto/create_pesanan.dto';
-import { UpdatePesananDto } from '../dto/update_pesanan.dto';
-import { QueryPesananDto } from '../dto/query_pesanan.dto';
-import { PesananResponseDto } from '../dto/pesanan_response.dto';
-import { Decimal } from '@prisma/client/runtime/library';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { PrismaService } from 'src/prisma/prisma.service'; // Adjust path
+import { CreatePesananDto } from '../dto/create_pesanan.dto'; // Adjust path
+import { UpdatePesananDto, PesananStatusEnum } from '../dto/update_pesanan.dto'; // Adjust path and import enum
+import { Pesanan, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PesananService {
   constructor(private prisma: PrismaService) {}
 
-  // Helper method untuk konversi Decimal ke number
-  private convertDecimalToNumber(value: Decimal | null | undefined): number {
-    if (!value) return 0;
-    return parseFloat(value.toString());
+  async createPesanan(dto: CreatePesananDto): Promise<Pesanan> {
+    // Validate existence of all required related entities
+    const [user, paket, supir, armada] = await this.prisma.$transaction([
+      this.prisma.user.findUnique({ where: { userId: dto.userId } }),
+      this.prisma.paketWisata.findUnique({ where: { paketId: dto.paketId } }),
+      this.prisma.supir.findUnique({ where: { supirId: dto.supirId } }),
+      this.prisma.armada.findUnique({ where: { armadaId: dto.armadaId } }),
+    ]);
+
+    if (!user) throw new NotFoundException(`User with ID ${dto.userId} not found.`);
+    if (!paket) throw new NotFoundException(`Paket Wisata with ID ${dto.paketId} not found.`);
+    if (!supir) throw new NotFoundException(`Supir with ID ${dto.supirId} not found.`);
+    if (!armada) throw new NotFoundException(`Armada with ID ${dto.armadaId} not found.`);
+
+    const totalHarga = paket.harga; // Get price from the selected package
+
+    try {
+      return await this.prisma.pesanan.create({
+        data: {
+          user: { connect: { userId: dto.userId } },
+          paket: { connect: { paketId: dto.paketId } },
+          supir: { connect: { supirId: dto.supirId } },
+          armada: { connect: { armadaId: dto.armadaId } },
+          tanggalPesan: new Date(), // Set current date for order creation
+          tanggalMulaiWisata: new Date(dto.tanggalMulaiWisata),
+          tanggalSelesaiWisata: new Date(dto.tanggalSelesaiWisata),
+          jumlahPeserta: dto.jumlahPeserta,
+          totalHarga: totalHarga, // Use the price from the package
+          statusPesanan: PesananStatusEnum.PENDING, // Default status
+          catatanKhusus: dto.catatanKhusus,
+        },
+      });
+    } catch (error) {
+      console.error('Prisma error creating pesanan:', error);
+      // Handle specific Prisma errors if needed, e.g., unique constraints
+      throw error;
+    }
   }
 
-  // Helper method untuk format response
-  private formatPesananResponse(pesanan: any): PesananResponseDto {
-    return {
-      ...pesanan,
-      totalHarga: this.convertDecimalToNumber(pesanan.totalHarga),
-      paket: {
-        ...pesanan.paket,
-        harga: this.convertDecimalToNumber(pesanan.paket.harga)
-      }
-    };
-  }
-
-  async create(createPesananDto: CreatePesananDto): Promise<PesananResponseDto> {
-    const {
-      userId,
-      paketId,
-      supirId,
-      armadaId,
-      tanggalMulaiWisata,
-      tanggalSelesaiWisata,
-      jumlahPeserta,
-      totalHarga,
-      catatanKhusus
-    } = createPesananDto;
-
-    // Validasi tanggal
-    const startDate = new Date(tanggalMulaiWisata);
-    const endDate = new Date(tanggalSelesaiWisata);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (startDate < today) {
-      throw new BadRequestException('Tanggal mulai wisata tidak boleh di masa lalu');
-    }
-
-    if (endDate <= startDate) {
-      throw new BadRequestException('Tanggal selesai harus setelah tanggal mulai');
-    }
-
-    // Validasi user exists
-    const user = await this.prisma.user.findUnique({
-      where: { userId, statusAktif: true }
-    });
-    if (!user) {
-      throw new NotFoundException('User tidak ditemukan atau tidak aktif');
-    }
-
-    // Validasi paket exists
-    const paket = await this.prisma.paketWisata.findUnique({
-      where: { paketId, statusPaket: 'aktif' }
-    });
-    if (!paket) {
-      throw new NotFoundException('Paket wisata tidak ditemukan atau tidak aktif');
-    }
-
-    // Validasi supir exists dan tersedia
-    const supir = await this.prisma.supir.findUnique({
-      where: { supirId, statusSupir: 'tersedia' }
-    });
-    if (!supir) {
-      throw new NotFoundException('Supir tidak ditemukan atau tidak tersedia');
-    }
-
-    // Validasi armada exists dan tersedia
-    const armada = await this.prisma.armada.findUnique({
-      where: { armadaId, statusArmada: 'tersedia' }
-    });
-    if (!armada) {
-      throw new NotFoundException('Armada tidak ditemukan atau tidak tersedia');
-    }
-
-    // Validasi kapasitas armada
-    if (jumlahPeserta > armada.kapasitas) {
-      throw new BadRequestException(`Jumlah peserta (${jumlahPeserta}) melebihi kapasitas armada (${armada.kapasitas})`);
-    }
-
-    // Cek konflik jadwal supir
-    const conflictSupir = await this.prisma.pesanan.findFirst({
-      where: {
-        supirId,
-        statusPesanan: { in: ['confirmed', 'ongoing'] },
-        OR: [
-          {
-            AND: [
-              { tanggalMulaiWisata: { lte: endDate } },
-              { tanggalSelesaiWisata: { gte: startDate } }
-            ]
-          }
-        ]
-      }
-    });
-
-    if (conflictSupir) {
-      throw new ConflictException('Supir sudah memiliki jadwal pada tanggal tersebut');
-    }
-
-    // Cek konflik jadwal armada
-    const conflictArmada = await this.prisma.pesanan.findFirst({
-      where: {
-        armadaId,
-        statusPesanan: { in: ['confirmed', 'ongoing'] },
-        OR: [
-          {
-            AND: [
-              { tanggalMulaiWisata: { lte: endDate } },
-              { tanggalSelesaiWisata: { gte: startDate } }
-            ]
-          }
-        ]
-      }
-    });
-
-    if (conflictArmada) {
-      throw new ConflictException('Armada sudah memiliki jadwal pada tanggal tersebut');
-    }
-
-    // Buat pesanan
-    const pesanan = await this.prisma.pesanan.create({
-      data: {
-        userId,
-        paketId,
-        supirId,
-        armadaId,
-        tanggalPesan: new Date(),
-        tanggalMulaiWisata: startDate,
-        tanggalSelesaiWisata: endDate,
-        jumlahPeserta,
-        totalHarga,
-        statusPesanan: 'pending',
-        catatanKhusus
-      },
+  async findAllPesanan(): Promise<Pesanan[]> {
+    return this.prisma.pesanan.findMany({
       include: {
-        user: {
-          select: {
-            userId: true,
-            username: true,
-            namaLengkap: true,
-            email: true
-          }
-        },
-        paket: {
-          select: {
-            paketId: true,
-            namaPaket: true,
-            namaTempat: true,
-            lokasi: true,
-            harga: true
-          }
-        },
-        supir: {
-          select: {
-            supirId: true,
-            nama: true,
-            nomorHp: true,
-            ratingRata: true
-          }
-        },
-        armada: {
-          select: {
-            armadaId: true,
-            jenisMobil: true,
-            merkMobil: true,
-            platNomor: true,
-            kapasitas: true
-          }
-        }
-      }
+        user: true,
+        paket: true,
+        supir: true,
+        armada: true,
+      },
     });
-
-    return this.formatPesananResponse(pesanan);
   }
 
-  async findAll(query: QueryPesananDto): Promise<{ data: PesananResponseDto[]; total: number; page: number; limit: number }> {
-    const { userId, statusPesanan, tanggalMulaiDari, tanggalMulaiSampai, page = 1, limit = 10 } = query;
-    
-    const skip = (page - 1) * limit;
-    
-    const where: any = {};
-    
-    if (userId) where.userId = userId;
-    if (statusPesanan) where.statusPesanan = statusPesanan;
-    
-    if (tanggalMulaiDari || tanggalMulaiSampai) {
-      where.tanggalMulaiWisata = {};
-      if (tanggalMulaiDari) where.tanggalMulaiWisata.gte = new Date(tanggalMulaiDari);
-      if (tanggalMulaiSampai) where.tanggalMulaiWisata.lte = new Date(tanggalMulaiSampai);
+  async findOnePesanan(id: number): Promise<Pesanan | null> {
+    return this.prisma.pesanan.findUnique({
+      where: { pesananId: id },
+      include: {
+        user: true,
+        paket: true,
+        supir: true,
+        armada: true,
+      },
+    });
+  }
+
+  async updatePesanan(id: number, dto: UpdatePesananDto): Promise<Pesanan | null> {
+    const existingPesanan = await this.prisma.pesanan.findUnique({ where: { pesananId: id } });
+    if (!existingPesanan) {
+      return null;
     }
 
-    const [data, total] = await Promise.all([
-      this.prisma.pesanan.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: { createdAt: 'desc' },
+    // Prepare data to update, handling required relations
+    const dataToUpdate: Prisma.PesananUpdateInput = {
+      // Scalar updates
+      tanggalMulaiWisata: dto.tanggalMulaiWisata ? new Date(dto.tanggalMulaiWisata) : undefined,
+      tanggalSelesaiWisata: dto.tanggalSelesaiWisata ? new Date(dto.tanggalSelesaiWisata) : undefined,
+      jumlahPeserta: dto.jumlahPeserta ?? undefined,
+      catatanKhusus: dto.catatanKhusus ?? undefined,
+      statusPesanan: dto.statusPesanan ?? undefined,
+    };
+
+    // Handle updates for required relations (User, Paket, Supir, Armada)
+    // Remember: These cannot be set to null. If provided in DTO, they must connect to an existing ID.
+    if (dto.userId !== undefined) {
+      if (dto.userId === null) throw new BadRequestException('User ID cannot be null, as User is a required relation.');
+      const user = await this.prisma.user.findUnique({ where: { userId: dto.userId } });
+      if (!user) throw new NotFoundException(`User with ID ${dto.userId} not found.`);
+      dataToUpdate.user = { connect: { userId: dto.userId } };
+    }
+
+    if (dto.paketId !== undefined) {
+      if (dto.paketId === null) throw new BadRequestException('Paket ID cannot be null, as Paket is a required relation.');
+      const paket = await this.prisma.paketWisata.findUnique({ where: { paketId: dto.paketId } });
+      if (!paket) throw new NotFoundException(`Paket Wisata with ID ${dto.paketId} not found.`);
+      dataToUpdate.paket = { connect: { paketId: dto.paketId } };
+      // If package changes, re-calculate totalHarga
+      dataToUpdate.totalHarga = paket.harga;
+    }
+
+    if (dto.supirId !== undefined) {
+      if (dto.supirId === null) throw new BadRequestException('Supir ID cannot be null, as Supir is a required relation.');
+      const supir = await this.prisma.supir.findUnique({ where: { supirId: dto.supirId } });
+      if (!supir) throw new NotFoundException(`Supir with ID ${dto.supirId} not found.`);
+      dataToUpdate.supir = { connect: { supirId: dto.supirId } };
+    }
+
+    if (dto.armadaId !== undefined) {
+      if (dto.armadaId === null) throw new BadRequestException('Armada ID cannot be null, as Armada is a required relation.');
+      const armada = await this.prisma.armada.findUnique({ where: { armadaId: dto.armadaId } });
+      if (!armada) throw new NotFoundException(`Armada with ID ${dto.armadaId} not found.`);
+      dataToUpdate.armada = { connect: { armadaId: dto.armadaId } };
+    }
+
+    try {
+      return await this.prisma.pesanan.update({
+        where: { pesananId: id },
+        data: dataToUpdate,
         include: {
-          user: {
-            select: {
-              userId: true,
-              username: true,
-              namaLengkap: true,
-              email: true
-            }
-          },
-          paket: {
-            select: {
-              paketId: true,
-              namaPaket: true,
-              namaTempat: true,
-              lokasi: true,
-              harga: true
-            }
-          },
-          supir: {
-            select: {
-              supirId: true,
-              nama: true,
-              nomorHp: true,
-              ratingRata: true
-            }
-          },
-          armada: {
-            select: {
-              armadaId: true,
-              jenisMobil: true,
-              merkMobil: true,
-              platNomor: true,
-              kapasitas: true
-            }
-          }
-        }
-      }),
-      this.prisma.pesanan.count({ where })
-    ]);
-
-    return {
-      data: data.map(pesanan => this.formatPesananResponse(pesanan)),
-      total,
-      page,
-      limit
-    };
-  }
-
-  async findOne(id: number): Promise<PesananResponseDto> {
-    const pesanan = await this.prisma.pesanan.findUnique({
-      where: { pesananId: id },
-      include: {
-        user: {
-          select: {
-            userId: true,
-            username: true,
-            namaLengkap: true,
-            email: true
-          }
+          user: true, paket: true, supir: true, armada: true,
         },
-        paket: {
-          select: {
-            paketId: true,
-            namaPaket: true,
-            namaTempat: true,
-            lokasi: true,
-            harga: true
-          }
-        },
-        supir: {
-          select: {
-            supirId: true,
-            nama: true,
-            nomorHp: true,
-            ratingRata: true
-          }
-        },
-        armada: {
-          select: {
-            armadaId: true,
-            jenisMobil: true,
-            merkMobil: true,
-            platNomor: true,
-            kapasitas: true
-          }
+      });
+    } catch (error) {
+      console.error(`Prisma error updating pesanan with ID ${id}:`, error);
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') { // Record to update not found
+          throw new NotFoundException(`Pesanan with ID ${id} not found.`);
         }
       }
-    });
-
-    if (!pesanan) {
-      throw new NotFoundException(`Pesanan dengan ID ${id} tidak ditemukan`);
+      throw error;
     }
-
-    return this.formatPesananResponse(pesanan);
   }
 
-  async update(id: number, updatePesananDto: UpdatePesananDto): Promise<PesananResponseDto> {
-    const existingPesanan = await this.findOne(id);
-
-    // Validasi status update
-    if (updatePesananDto.statusPesanan) {
-      const validTransitions = {
-        'pending': ['confirmed', 'cancelled'],
-        'confirmed': ['ongoing', 'cancelled'],
-        'ongoing': ['completed', 'cancelled'],
-        'completed': [],
-        'cancelled': []
-      };
-
-      const currentStatus = existingPesanan.statusPesanan;
-      const newStatus = updatePesananDto.statusPesanan;
-
-      if (!validTransitions[currentStatus]?.includes(newStatus)) {
-        throw new BadRequestException(`Tidak dapat mengubah status dari ${currentStatus} ke ${newStatus}`);
-      }
-    }
-
-    const pesanan = await this.prisma.pesanan.update({
-      where: { pesananId: id },
-      data: updatePesananDto,
-      include: {
-        user: {
-          select: {
-            userId: true,
-            username: true,
-            namaLengkap: true,
-            email: true
-          }
-        },
-        paket: {
-          select: {
-            paketId: true,
-            namaPaket: true,
-            namaTempat: true,
-            lokasi: true,
-            harga: true
-          }
-        },
-        supir: {
-          select: {
-            supirId: true,
-            nama: true,
-            nomorHp: true,
-            ratingRata: true
-          }
-        },
-        armada: {
-          select: {
-            armadaId: true,
-            jenisMobil: true,
-            merkMobil: true,
-            platNomor: true,
-            kapasitas: true
-          }
+  async removePesanan(id: number): Promise<boolean> {
+    try {
+      const result = await this.prisma.pesanan.delete({
+        where: { pesananId: id },
+      });
+      return result !== null;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') { // Record not found
+          throw new NotFoundException(`Pesanan with ID ${id} not found.`);
         }
       }
-    });
-
-    return this.formatPesananResponse(pesanan);
-  }
-
-  async remove(id: number): Promise<{ message: string }> {
-    const pesanan = await this.findOne(id);
-
-    if (pesanan.statusPesanan === 'ongoing') {
-      throw new BadRequestException('Tidak dapat menghapus pesanan yang sedang berlangsung');
+      console.error(`Error deleting pesanan with ID ${id}:`, error);
+      throw error;
     }
-
-    await this.prisma.pesanan.delete({
-      where: { pesananId: id }
-    });
-
-    return { message: `Pesanan dengan ID ${id} berhasil dihapus` };
-  }
-
-  async getStatistics(): Promise<any> {
-    const [
-      totalPesanan,
-      pesananPending,
-      pesananConfirmed,
-      pesananOngoing,
-      pesananCompleted,
-      pesananCancelled,
-      totalRevenue
-    ] = await Promise.all([
-      this.prisma.pesanan.count(),
-      this.prisma.pesanan.count({ where: { statusPesanan: 'pending' } }),
-      this.prisma.pesanan.count({ where: { statusPesanan: 'confirmed' } }),
-      this.prisma.pesanan.count({ where: { statusPesanan: 'ongoing' } }),
-      this.prisma.pesanan.count({ where: { statusPesanan: 'completed' } }),
-      this.prisma.pesanan.count({ where: { statusPesanan: 'cancelled' } }),
-      this.prisma.pesanan.aggregate({
-        where: { statusPesanan: 'completed' },
-        _sum: { totalHarga: true }
-      })
-    ]);
-
-    return {
-      totalPesanan,
-      statusBreakdown: {
-        pending: pesananPending,
-        confirmed: pesananConfirmed,
-        ongoing: pesananOngoing,
-        completed: pesananCompleted,
-        cancelled: pesananCancelled
-      },
-      totalRevenue: this.convertDecimalToNumber(totalRevenue._sum.totalHarga)
-    };
   }
 }

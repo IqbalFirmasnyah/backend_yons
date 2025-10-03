@@ -1,549 +1,294 @@
-// pesanan-luar-kota.service.ts
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePesananLuarKotaDto } from 'src/dto/create_pesanan_luar_kota.dto';
 import { UpdatePesananLuarKotaDto } from 'src/dto/update_pesanan_luar_kota.dto';
-import { QueryPesananLuarKotaDto } from 'src/dto/query_pesanan_luar_kota.dto';
-import { Prisma } from '@prisma/client';
+import { PesananLuarKota, Prisma } from '@prisma/client';
+import { JenisFasilitasEnum } from 'src/dto/create-fasilitas.dto';
 
 @Injectable()
 export class PesananLuarKotaService {
-  findAllAdmin(query: QueryPesananLuarKotaDto) {
-      throw new Error('Method not implemented.');
-  }
   constructor(private prisma: PrismaService) {}
 
-  async create(userId: number, createDto: CreatePesananLuarKotaDto) {
-    // Validasi paket wisata luar kota exists
-    const paketExists = await this.prisma.paketWisataLuarKota.findUnique({
-      where: { paketLuarKotaId: createDto.paketLuarKotaId }
-    });
-    
-    if (!paketExists) {
-      throw new NotFoundException('Paket wisata luar kota tidak ditemukan');
+  async createPesananLuarKota(dto: CreatePesananLuarKotaDto): Promise<PesananLuarKota> {
+    if (dto.paketLuarKotaId && dto.fasilitasId) {
+      throw new BadRequestException('Only one of paketLuarKotaId or fasilitasId can be provided.');
+    }
+    if (!dto.paketLuarKotaId && !dto.fasilitasId) {
+      throw new BadRequestException('Either paketLuarKotaId or fasilitasId must be provided.');
     }
 
-    if (paketExists.statusPaket !== 'aktif') {
-      throw new BadRequestException('Paket wisata luar kota tidak aktif');
-    }
+    const [user, supir, armada] = await this.prisma.$transaction([
+      this.prisma.user.findUnique({ where: { userId: 1 } }), // **IMPORTANT: Replace 1 with dynamic userId from context**
+      this.prisma.supir.findUnique({ where: { supirId: dto.supirId } }),
+      this.prisma.armada.findUnique({ where: { armadaId: dto.armadaId } }),
+    ]);
 
-    // Validasi supir exists dan tersedia
-    const supir = await this.prisma.supir.findUnique({
-      where: { supirId: createDto.supirId }
-    });
+    if (!user) throw new NotFoundException('User not found. Please provide a valid user ID.');
+    if (!supir) throw new NotFoundException(`Supir with ID ${dto.supirId} not found.`);
+    if (!armada) throw new NotFoundException(`Armada with ID ${dto.armadaId} not found.`);
 
-    if (!supir) {
-      throw new NotFoundException('Supir tidak ditemukan');
-    }
+    let totalHargaFinal: Prisma.Decimal;
+    let connectPaketLuarKota: Prisma.PaketWisataLuarKotaCreateNestedOneWithoutPesananLuarKotaInput | undefined;
+    let connectFasilitas: Prisma.FasilitasCreateNestedOneWithoutPesananLuarKotaInput | undefined;
 
-    if (supir.statusSupir !== 'tersedia') {
-      throw new BadRequestException('Supir tidak tersedia');
-    }
-
-    // Validasi armada exists dan tersedia
-    const armada = await this.prisma.armada.findUnique({
-      where: { armadaId: createDto.armadaId }
-    });
-
-    if (!armada) {
-      throw new NotFoundException('Armada tidak ditemukan');
-    }
-
-    if (armada.statusArmada !== 'tersedia') {
-      throw new BadRequestException('Armada tidak tersedia');
-    }
-
-    // Validasi tanggal
-    const tanggalMulai = new Date(createDto.tanggalMulaiWisata);
-    const tanggalSelesai = new Date(createDto.tanggalSelesaiWisata);
-    const today = new Date();
-
-    if (tanggalMulai < today) {
-      throw new BadRequestException('Tanggal mulai wisata tidak boleh kurang dari hari ini');
-    }
-
-    if (tanggalSelesai <= tanggalMulai) {
-      throw new BadRequestException('Tanggal selesai wisata harus lebih besar dari tanggal mulai');
-    }
-
-    // Cek konflik jadwal supir dan armada
-    await this.checkScheduleConflict(createDto.supirId, createDto.armadaId, tanggalMulai, tanggalSelesai);
-
-    try {
-      const pesanan = await this.prisma.pesananLuarKota.create({
-        data: {
-          userId,
-          paketLuarKotaId: createDto.paketLuarKotaId,
-          supirId: createDto.supirId,
-          armadaId: createDto.armadaId,
-          inputTujuanUser: createDto.inputTujuanUser,
-          tanggalPesan: new Date(),
-          tanggalMulaiWisata: tanggalMulai,
-          tanggalSelesaiWisata: tanggalSelesai,
-          jumlahPeserta: createDto.jumlahPeserta,
-          totalHargaFinal: createDto.totalHargaFinal,
-          statusPesanan: 'pending',
-          catatanKhusus: createDto.catatanKhusus,
+    if (dto.paketLuarKotaId) {
+      const paketLuarKota = await this.prisma.paketWisataLuarKota.findUnique({
+        where: { paketLuarKotaId: dto.paketLuarKotaId },
+        select: { hargaEstimasi: true },
+      });
+      if (!paketLuarKota) {
+        throw new NotFoundException(`Paket Wisata Luar Kota with ID ${dto.paketLuarKotaId} not found.`);
+      }
+      totalHargaFinal = paketLuarKota.hargaEstimasi;
+      connectPaketLuarKota = { connect: { paketLuarKotaId: dto.paketLuarKotaId } };
+    } else { // fasilitasId is provided
+      const fasilitas = await this.prisma.fasilitas.findUnique({
+        where: { fasilitasId: dto.fasilitasId },
+        select: {
+          jenisFasilitas: true,
+          dropoff: { select: { hargaEstimasi: true } },
+          customRute: { select: { hargaEstimasi: true } },
+          paketLuarKota: { select: { hargaEstimasi: true } }
         },
-        include: {
-          user: {
-            select: {
-              userId: true,
-              username: true,
-              namaLengkap: true,
-              email: true
-            }
-          },
-          paketLuarKota: true,
-          supir: {
-            select: {
-              supirId: true,
-              nama: true,
-              nomorHp: true,
-              ratingRata: true
-            }
-          },
-          armada: {
-            select: {
-              armadaId: true,
-              jenisMobil: true,
-              merkMobil: true,
-              platNomor: true,
-              kapasitas: true
-            }
-          }
-        }
       });
 
-      return pesanan;
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        throw new BadRequestException('Gagal membuat pesanan luar kota');
+      if (!fasilitas) throw new NotFoundException(`Fasilitas with ID ${dto.fasilitasId} not found.`);
+
+      switch (fasilitas.jenisFasilitas) {
+        case JenisFasilitasEnum.DROPOFF:
+          if (!fasilitas.dropoff) throw new BadRequestException('Fasilitas is of type dropoff but no associated dropoff details found.');
+          totalHargaFinal = fasilitas.dropoff.hargaEstimasi;
+          break;
+        case JenisFasilitasEnum.CUSTOM:
+          // PERBAIKAN: Akses elemen pertama dari array dan tambahkan validasi
+          if (!fasilitas.customRute || fasilitas.customRute.length === 0) {
+            throw new BadRequestException('Fasilitas is of type custom but no associated custom route details found.');
+          }
+          totalHargaFinal = fasilitas.customRute[0].hargaEstimasi;
+          break;
+        case JenisFasilitasEnum.PAKET_LUAR_KOTA:
+          if (!fasilitas.paketLuarKota) {
+            throw new BadRequestException('Fasilitas is of type paket_luar_kota but no associated paketLuarKota details found.');
+          }
+          totalHargaFinal = fasilitas.paketLuarKota.hargaEstimasi;
+          break;
+        default:
+          throw new BadRequestException('Fasilitas type not supported for price calculation.');
       }
+      connectFasilitas = { connect: { fasilitasId: dto.fasilitasId } };
+    }
+
+    try {
+      return await this.prisma.pesananLuarKota.create({
+        data: {
+          user: { connect: { userId: user.userId } },
+          supir: { connect: { supirId: dto.supirId } },
+          armada: { connect: { armadaId: dto.armadaId } },
+          tanggalPesan: new Date(),
+          tanggalMulaiWisata: new Date(dto.tanggalMulaiWisata),
+          tanggalSelesaiWisata: new Date(dto.tanggalSelesaiWisata),
+          jumlahPeserta: dto.jumlahPeserta,
+          inputTujuanUser: dto.inputTujuanUser,
+          catatanKhusus: dto.catatanKhusus,
+          totalHargaFinal: totalHargaFinal,
+          statusPesanan: 'pending',
+          ...(connectPaketLuarKota && { paketLuarKota: connectPaketLuarKota }),
+          ...(connectFasilitas && { fasilitas: connectFasilitas }),
+        },
+      });
+    } catch (error) {
+      console.error('Prisma error creating pesanan luar kota:', error);
       throw error;
     }
   }
 
-  async findAll(query: QueryPesananLuarKotaDto) {
-    const { page = 1, limit = 10, search, status, userId, supirId, armadaId, sortBy = 'createdAt', sortOrder = 'desc' } = query;
-    
-    const skip = (page - 1) * limit;
-    
-    const where: Prisma.PesananLuarKotaWhereInput = {};
-
-    if (search) {
-      where.paketLuarKota = {
-        namaPaket: {
-          contains: search,
-          mode: 'insensitive'
-        }
-      };
-    }
-
-    if (status) {
-      where.statusPesanan = status;
-    }
-
-    if (userId) {
-      where.userId = userId;
-    }
-
-    if (supirId) {
-      where.supirId = supirId;
-    }
-
-    if (armadaId) {
-      where.armadaId = armadaId;
-    }
-
-    const [pesananList, total] = await Promise.all([
-      this.prisma.pesananLuarKota.findMany({
-        where,
-        skip,
-        take: limit,
-        orderBy: {
-          [sortBy]: sortOrder
-        },
-        include: {
-          user: {
-            select: {
-              userId: true,
-              username: true,
-              namaLengkap: true,
-              email: true
-            }
-          },
-          paketLuarKota: true,
-          supir: {
-            select: {
-              supirId: true,
-              nama: true,
-              nomorHp: true,
-              ratingRata: true
-            }
-          },
-          armada: {
-            select: {
-              armadaId: true,
-              jenisMobil: true,
-              merkMobil: true,
-              platNomor: true,
-              kapasitas: true
-            }
-          }
-        }
-      }),
-      this.prisma.pesananLuarKota.count({ where })
-    ]);
-
-    return {
-      data: pesananList,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit)
-      }
-    };
+  async findAllPesananLuarKota(): Promise<PesananLuarKota[]> {
+    return this.prisma.pesananLuarKota.findMany({
+      include: {
+        user: true,
+        supir: true,
+        armada: true,
+        paketLuarKota: true,
+        fasilitas: true,
+      },
+    });
   }
 
-  async findOne(id: number) {
-    const pesanan = await this.prisma.pesananLuarKota.findUnique({
+  async findOnePesananLuarKota(id: number): Promise<PesananLuarKota | null> {
+    return this.prisma.pesananLuarKota.findUnique({
       where: { pesananLuarKotaId: id },
       include: {
-        user: {
-          select: {
-            userId: true,
-            username: true,
-            namaLengkap: true,
-            email: true,
-            noHp: true
-          }
-        },
-        paketLuarKota: {
-          include: {
-            detailRute: {
-              orderBy: {
-                urutanKe: 'asc'
-              }
-            }
-          }
-        },
-        supir: {
-          select: {
-            supirId: true,
-            nama: true,
-            nomorHp: true,
-            ratingRata: true,
-            pengalamanTahun: true
-          }
-        },
-        armada: {
-          select: {
-            armadaId: true,
-            jenisMobil: true,
-            merkMobil: true,
-            platNomor: true,
-            kapasitas: true,
-            tahunKendaraan: true
-          }
-        },
-        pembayaran: true,
-        notifikasi: true
-      }
+        user: true,
+        supir: true,
+        armada: true,
+        paketLuarKota: true,
+        fasilitas: true,
+      },
     });
-
-    if (!pesanan) {
-      throw new NotFoundException('Pesanan luar kota tidak ditemukan');
-    }
-
-    return pesanan;
   }
 
-  async findByUser(userId: number, query: QueryPesananLuarKotaDto) {
-    return this.findAll({ ...query, userId });
-  }
-
-  async update(id: number, updateDto: UpdatePesananLuarKotaDto, userId?: number) {
+  async updatePesananLuarKota(id: number, dto: UpdatePesananLuarKotaDto): Promise<PesananLuarKota | null> {
     const existingPesanan = await this.prisma.pesananLuarKota.findUnique({
-      where: { pesananLuarKotaId: id }
-    });
-
-    if (!existingPesanan) {
-      throw new NotFoundException('Pesanan luar kota tidak ditemukan');
-    }
-
-    // Validasi kepemilikan jika userId diberikan
-    if (userId && existingPesanan.userId !== userId) {
-      throw new ForbiddenException('Tidak memiliki akses untuk mengubah pesanan ini');
-    }
-
-    // Validasi status untuk update tertentu
-    if (updateDto.statusPesanan && existingPesanan.statusPesanan === 'completed') {
-      throw new BadRequestException('Tidak dapat mengubah pesanan yang sudah selesai');
-    }
-
-    // Validasi supir jika diubah
-    if (updateDto.supirId && updateDto.supirId !== existingPesanan.supirId) {
-      const supir = await this.prisma.supir.findUnique({
-        where: { supirId: updateDto.supirId }
-      });
-
-      if (!supir || supir.statusSupir !== 'tersedia') {
-        throw new BadRequestException('Supir tidak tersedia');
-      }
-    }
-
-    // Validasi armada jika diubah
-    if (updateDto.armadaId && updateDto.armadaId !== existingPesanan.armadaId) {
-      const armada = await this.prisma.armada.findUnique({
-        where: { armadaId: updateDto.armadaId }
-      });
-
-      if (!armada || armada.statusArmada !== 'tersedia') {
-        throw new BadRequestException('Armada tidak tersedia');
-      }
-    }
-
-    // Validasi tanggal jika diubah
-    if (updateDto.tanggalMulaiWisata || updateDto.tanggalSelesaiWisata) {
-      const tanggalMulai = updateDto.tanggalMulaiWisata 
-        ? new Date(updateDto.tanggalMulaiWisata) 
-        : existingPesanan.tanggalMulaiWisata;
-      const tanggalSelesai = updateDto.tanggalSelesaiWisata 
-        ? new Date(updateDto.tanggalSelesaiWisata) 
-        : existingPesanan.tanggalSelesaiWisata;
-
-      if (tanggalSelesai <= tanggalMulai) {
-        throw new BadRequestException('Tanggal selesai wisata harus lebih besar dari tanggal mulai');
-      }
-
-      // Cek konflik jadwal jika tanggal atau resource berubah
-      const supirId = updateDto.supirId || existingPesanan.supirId;
-      const armadaId = updateDto.armadaId || existingPesanan.armadaId;
-      
-      await this.checkScheduleConflict(supirId, armadaId, tanggalMulai, tanggalSelesai, id);
-    }
-
-    try {
-      const updatedPesanan = await this.prisma.pesananLuarKota.update({
-        where: { pesananLuarKotaId: id },
-        data: {
-          ...(updateDto.supirId && { supirId: updateDto.supirId }),
-          ...(updateDto.armadaId && { armadaId: updateDto.armadaId }),
-          ...(updateDto.inputTujuanUser && { inputTujuanUser: updateDto.inputTujuanUser }),
-          ...(updateDto.tanggalMulaiWisata && { tanggalMulaiWisata: new Date(updateDto.tanggalMulaiWisata) }),
-          ...(updateDto.tanggalSelesaiWisata && { tanggalSelesaiWisata: new Date(updateDto.tanggalSelesaiWisata) }),
-          ...(updateDto.jumlahPeserta && { jumlahPeserta: updateDto.jumlahPeserta }),
-          ...(updateDto.totalHargaFinal && { totalHargaFinal: updateDto.totalHargaFinal }),
-          ...(updateDto.statusPesanan && { statusPesanan: updateDto.statusPesanan }),
-          ...(updateDto.catatanKhusus !== undefined && { catatanKhusus: updateDto.catatanKhusus }),
-        },
-        include: {
-          user: {
-            select: {
-              userId: true,
-              username: true,
-              namaLengkap: true,
-              email: true
-            }
-          },
-          paketLuarKota: true,
-          supir: {
-            select: {
-              supirId: true,
-              nama: true,
-              nomorHp: true,
-              ratingRata: true
-            }
-          },
-          armada: {
-            select: {
-              armadaId: true,
-              jenisMobil: true,
-              merkMobil: true,
-              platNomor: true,
-              kapasitas: true
-            }
-          }
-        }
-      });
-
-      return updatedPesanan;
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        throw new BadRequestException('Gagal mengubah pesanan luar kota');
-      }
-      throw error;
-    }
-  }
-
-  async updateStatus(id: number, status: string) {
-    const validStatuses = ['pending', 'confirmed', 'ongoing', 'completed', 'cancelled'];
-    
-    if (!validStatuses.includes(status)) {
-      throw new BadRequestException('Status tidak valid');
-    }
-
-    const existingPesanan = await this.prisma.pesananLuarKota.findUnique({
-      where: { pesananLuarKotaId: id }
-    });
-
-    if (!existingPesanan) {
-      throw new NotFoundException('Pesanan luar kota tidak ditemukan');
-    }
-
-    return this.prisma.pesananLuarKota.update({
       where: { pesananLuarKotaId: id },
-      data: { statusPesanan: status }
+      // PERBAIKAN: Include relasi yang diperlukan untuk re-kalkulasi harga
+      include: {
+        fasilitas: {
+          select: {
+            jenisFasilitas: true,
+            dropoff: { select: { hargaEstimasi: true } },
+            customRute: { select: { hargaEstimasi: true } },
+            paketLuarKota: { select: { hargaEstimasi: true } }
+          }
+        },
+        paketLuarKota: { select: { hargaEstimasi: true } }
+      }
     });
-  }
 
-  async remove(id: number, userId?: number) {
-    const existingPesanan = await this.prisma.pesananLuarKota.findUnique({
-      where: { pesananLuarKotaId: id }
-    });
+    if (!existingPesanan) return null;
 
-    if (!existingPesanan) {
-      throw new NotFoundException('Pesanan luar kota tidak ditemukan');
+    if (dto.paketLuarKotaId !== undefined && dto.fasilitasId !== undefined) {
+      throw new BadRequestException('Only one of paketLuarKotaId or fasilitasId can be updated at a time.');
     }
 
-    // Validasi kepemilikan jika userId diberikan
-    if (userId && existingPesanan.userId !== userId) {
-      throw new ForbiddenException('Tidak memiliki akses untuk menghapus pesanan ini');
+    if (dto.supirId) {
+      const supir = await this.prisma.supir.findUnique({ where: { supirId: dto.supirId } });
+      if (!supir) throw new NotFoundException(`Supir with ID ${dto.supirId} not found.`);
+    }
+    if (dto.armadaId) {
+      const armada = await this.prisma.armada.findUnique({ where: { armadaId: dto.armadaId } });
+      if (!armada) throw new NotFoundException(`Armada with ID ${dto.armadaId} not found.`);
     }
 
-    // Validasi status - hanya bisa dihapus jika pending atau cancelled
-    if (!['pending', 'cancelled'].includes(existingPesanan.statusPesanan)) {
-      throw new BadRequestException('Hanya pesanan dengan status pending atau cancelled yang dapat dihapus');
+    let newTotalHargaFinal: Prisma.Decimal | undefined;
+    let connectDisconnectPaketLuarKota: Prisma.PaketWisataLuarKotaUpdateOneWithoutPesananLuarKotaNestedInput | undefined;
+    let connectDisconnectFasilitas: Prisma.FasilitasUpdateOneWithoutPesananLuarKotaNestedInput | undefined;
+
+    // Logic to determine the new price based on the updated DTO
+    if (dto.paketLuarKotaId !== undefined) {
+      if (dto.paketLuarKotaId === null) {
+        connectDisconnectPaketLuarKota = { disconnect: true };
+        newTotalHargaFinal = undefined;
+      } else {
+        const paketLuarKota = await this.prisma.paketWisataLuarKota.findUnique({
+          where: { paketLuarKotaId: dto.paketLuarKotaId },
+          select: { hargaEstimasi: true },
+        });
+        if (!paketLuarKota) throw new NotFoundException(`Paket Wisata Luar Kota with ID ${dto.paketLuarKotaId} not found.`);
+        newTotalHargaFinal = paketLuarKota.hargaEstimasi;
+        connectDisconnectPaketLuarKota = { connect: { paketLuarKotaId: dto.paketLuarKotaId } };
+      }
+    }
+
+    if (dto.fasilitasId !== undefined) {
+      if (dto.fasilitasId === null) {
+        connectDisconnectFasilitas = { disconnect: true };
+        newTotalHargaFinal = undefined;
+      } else {
+        const fasilitas = await this.prisma.fasilitas.findUnique({
+          where: { fasilitasId: dto.fasilitasId },
+          select: {
+            jenisFasilitas: true,
+            dropoff: { select: { hargaEstimasi: true } },
+            customRute: { select: { hargaEstimasi: true } },
+            paketLuarKota: { select: { hargaEstimasi: true } }
+          },
+        });
+
+        if (!fasilitas) throw new NotFoundException(`Fasilitas with ID ${dto.fasilitasId} not found.`);
+
+        switch (fasilitas.jenisFasilitas) {
+          case JenisFasilitasEnum.DROPOFF:
+            if (!fasilitas.dropoff) throw new BadRequestException('Fasilitas is of type dropoff but no associated dropoff details found.');
+            newTotalHargaFinal = fasilitas.dropoff.hargaEstimasi;
+            break;
+          case JenisFasilitasEnum.CUSTOM:
+            // PERBAIKAN: Akses elemen pertama dari array dan tambahkan validasi
+            if (!fasilitas.customRute || fasilitas.customRute.length === 0) {
+              throw new BadRequestException('Fasilitas is of type custom but no associated custom route details found.');
+            }
+            newTotalHargaFinal = fasilitas.customRute[0].hargaEstimasi;
+            break;
+          case JenisFasilitasEnum.PAKET_LUAR_KOTA:
+            if (!fasilitas.paketLuarKota) {
+              throw new BadRequestException('Fasilitas is of type paket_luar_kota but no associated paketLuarKota details found.');
+            }
+            newTotalHargaFinal = fasilitas.paketLuarKota.hargaEstimasi;
+            break;
+          default:
+            throw new BadRequestException('Fasilitas type not supported for price calculation.');
+        }
+        connectDisconnectFasilitas = { connect: { fasilitasId: dto.fasilitasId } };
+      }
+    }
+
+    const dataToUpdate: Prisma.PesananLuarKotaUpdateInput = {
+      tanggalMulaiWisata: dto.tanggalMulaiWisata ? new Date(dto.tanggalMulaiWisata) : undefined,
+      tanggalSelesaiWisata: dto.tanggalSelesaiWisata ? new Date(dto.tanggalSelesaiWisata) : undefined,
+      jumlahPeserta: dto.jumlahPeserta,
+      inputTujuanUser: dto.inputTujuanUser,
+      catatanKhusus: dto.catatanKhusus,
+      totalHargaFinal: newTotalHargaFinal,
+    };
+
+    if (dto.supirId !== undefined) {
+      if (dto.supirId === null) {
+        throw new BadRequestException('Supir ID cannot be null, as Supir is a required relation.');
+      }
+      dataToUpdate.supir = { connect: { supirId: dto.supirId } };
+    }
+    if (dto.armadaId !== undefined) {
+      if (dto.armadaId === null) {
+        throw new BadRequestException('Armada ID cannot be null, as Armada is a required relation.');
+      }
+      dataToUpdate.armada = { connect: { armadaId: dto.armadaId } };
+    }
+
+    if (connectDisconnectPaketLuarKota) {
+        dataToUpdate.paketLuarKota = connectDisconnectPaketLuarKota;
+    }
+    if (connectDisconnectFasilitas) {
+        dataToUpdate.fasilitas = connectDisconnectFasilitas;
+    }
+
+    if (dto.paketLuarKotaId !== undefined && dto.paketLuarKotaId !== null) {
+        dataToUpdate.fasilitas = { disconnect: true };
+    } else if (dto.fasilitasId !== undefined && dto.fasilitasId !== null) {
+        dataToUpdate.paketLuarKota = { disconnect: true };
     }
 
     try {
-      await this.prisma.pesananLuarKota.delete({
-        where: { pesananLuarKotaId: id }
+      return await this.prisma.pesananLuarKota.update({
+        where: { pesananLuarKotaId: id },
+        data: dataToUpdate,
+        include: {
+          user: true, supir: true, armada: true, paketLuarKota: true, fasilitas: true
+        }
       });
-
-      return { message: 'Pesanan luar kota berhasil dihapus' };
     } catch (error) {
+      console.error(`Prisma error updating pesanan luar kota with ID ${id}:`, error);
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
-        throw new BadRequestException('Gagal menghapus pesanan luar kota');
+        if (error.code === 'P2025') {
+          throw new NotFoundException(`Pesanan Luar Kota with ID ${id} not found.`);
+        }
       }
       throw error;
     }
   }
 
-  // Helper method untuk cek konflik jadwal
-  private async checkScheduleConflict(
-    supirId: number,
-    armadaId: number,
-    tanggalMulai: Date,
-    tanggalSelesai: Date,
-    excludePesananId?: number
-  ) {
-    const whereCondition: Prisma.PesananLuarKotaWhereInput = {
-      OR: [
-        { supirId },
-        { armadaId }
-      ],
-      statusPesanan: {
-        in: ['confirmed', 'ongoing']
-      },
-      AND: [
-        {
-          tanggalMulaiWisata: {
-            lte: tanggalSelesai
-          }
-        },
-        {
-          tanggalSelesaiWisata: {
-            gte: tanggalMulai
-          }
+  async removePesananLuarKota(id: number): Promise<boolean> {
+    try {
+      const result = await this.prisma.pesananLuarKota.delete({
+        where: { pesananLuarKotaId: id },
+      });
+      return result !== null;
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          throw new NotFoundException(`Pesanan Luar Kota with ID ${id} not found.`);
         }
-      ]
-    };
-
-    if (excludePesananId) {
-      whereCondition.pesananLuarKotaId = {
-        not: excludePesananId
-      };
+      }
+      console.error(`Error deleting pesanan luar kota with ID ${id}:`, error);
+      throw error;
     }
-
-    const conflictingPesanan = await this.prisma.pesananLuarKota.findFirst({
-      where: whereCondition,
-      select: {
-        pesananLuarKotaId: true,
-        supirId: true,
-        armadaId: true,
-        tanggalMulaiWisata: true,
-        tanggalSelesaiWisata: true
-      }
-    });
-
-    if (conflictingPesanan) {
-      if (conflictingPesanan.supirId === supirId) {
-        throw new BadRequestException('Supir sudah memiliki jadwal pada tanggal tersebut');
-      }
-      if (conflictingPesanan.armadaId === armadaId) {
-        throw new BadRequestException('Armada sudah digunakan pada tanggal tersebut');
-      }
-    }
-
-    // Cek juga konflik dengan pesanan dalam kota
-    const conflictingPesananDalamKota = await this.prisma.pesanan.findFirst({
-      where: {
-        OR: [
-          { supirId },
-          { armadaId }
-        ],
-        statusPesanan: {
-          in: ['confirmed', 'ongoing']
-        },
-        AND: [
-          {
-            tanggalMulaiWisata: {
-              lte: tanggalSelesai
-            }
-          },
-          {
-            tanggalSelesaiWisata: {
-              gte: tanggalMulai
-            }
-          }
-        ]
-      }
-    });
-
-    if (conflictingPesananDalamKota) {
-      throw new BadRequestException('Supir atau armada sudah memiliki jadwal pesanan lain pada tanggal tersebut');
-    }
-  }
-
-  // Method untuk statistik
-  async getStatistics() {
-    const [total, pending, confirmed, ongoing, completed, cancelled] = await Promise.all([
-      this.prisma.pesananLuarKota.count(),
-      this.prisma.pesananLuarKota.count({ where: { statusPesanan: 'pending' } }),
-      this.prisma.pesananLuarKota.count({ where: { statusPesanan: 'confirmed' } }),
-      this.prisma.pesananLuarKota.count({ where: { statusPesanan: 'ongoing' } }),
-      this.prisma.pesananLuarKota.count({ where: { statusPesanan: 'completed' } }),
-      this.prisma.pesananLuarKota.count({ where: { statusPesanan: 'cancelled' } })
-    ]);
-
-    const totalRevenue = await this.prisma.pesananLuarKota.aggregate({
-      where: { statusPesanan: 'completed' },
-      _sum: { totalHargaFinal: true }
-    });
-
-    return {
-      total,
-      byStatus: {
-        pending,
-        confirmed,
-        ongoing,
-        completed,
-        cancelled
-      },
-      totalRevenue: totalRevenue._sum.totalHargaFinal || 0
-    };
   }
 }

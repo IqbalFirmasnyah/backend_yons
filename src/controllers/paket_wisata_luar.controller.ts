@@ -1,160 +1,177 @@
-import {
-    Controller,
-    Get,
-    Post,
-    Body,
-    Patch,
-    Param,
-    Delete,
-    Query,
-    ParseIntPipe,
-    HttpStatus,
-    UseGuards,
-  } from '@nestjs/common';
-  import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
-  import { PaketWisataLuarKotaService } from 'src/services/paket_wisata_luar.service'; 
-  import { CreatePaketWisataLuarKotaDto } from 'src/dto/create_paket_wisata_luar.dto'; 
-  import { PaketWisataLuarKotaResponseDto } from 'src/dto/paket_wisata_luar.response.dto';
-  import { UpdatePaketWisataLuarKotaDto } from 'src/dto/update_paket_wisata_luar.dto';
+import { 
+  Controller, 
+  Post, 
+  Body, 
+  Get, 
+  Param, 
+  Patch, 
+  Delete, 
+  HttpCode, 
+  HttpStatus, 
+  UseGuards,
+  ParseIntPipe,
+  ValidationPipe,
+  UseInterceptors,
+  UploadedFiles,
+  Query,
+  BadRequestException,
+} from '@nestjs/common';
+import { PaketWisataLuarKotaService } from 'src/services/paket_wisata_luar.service'; 
+import { CreatePaketWisataLuarKotaDto } from 'src/dto/create_paket_wisata_luar.dto'; 
+import { UpdatePaketWisataLuarKotaDto } from 'src/dto/update_paket_wisata_luar.dto';
+import { 
+  ApiTags, 
+  ApiOperation, 
+  ApiResponse, 
+  ApiBearerAuth,
+  ApiParam,
+  ApiConsumes,
+  ApiBody,
+  ApiQuery
+} from '@nestjs/swagger';
+import { StatusPaket } from 'src/dto/create_paket_wisata_luar.dto';
 import { JwtAuthGuard } from 'src/auth/strategies/jwt_auth.guard';
-  @ApiTags('Paket Wisata Luar Kota')
-  @Controller('paket-wisata-luar-kota')
-  @ApiBearerAuth() // Uncomment if using authentication
-  @UseGuards(JwtAuthGuard) // Uncomment if using authentication
-  export class PaketWisataLuarKotaController {
-    constructor(private readonly paketWisataLuarKotaService: PaketWisataLuarKotaService) {}
-  
-    @Post()
-    @ApiOperation({ summary: 'Membuat paket wisata luar kota baru' })
-    @ApiResponse({
-      status: HttpStatus.CREATED,
-      description: 'Paket wisata luar kota berhasil dibuat',
-      type: PaketWisataLuarKotaResponseDto,
-    })
-    @ApiResponse({
-      status: HttpStatus.BAD_REQUEST,
-      description: 'Data tidak valid',
-    })
-    async create(@Body() createDto: CreatePaketWisataLuarKotaDto) {
-      return this.paketWisataLuarKotaService.create(createDto);
-    }
-  
-    @Get()
-    @ApiOperation({ summary: 'Mendapatkan daftar paket wisata luar kota' })
-    @ApiQuery({ name: 'page', required: false, type: Number, description: 'Nomor halaman' })
-    @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Jumlah data per halaman' })
-    @ApiQuery({ name: 'status', required: false, type: String, description: 'Filter berdasarkan status' })
-    @ApiQuery({ name: 'search', required: false, type: String, description: 'Pencarian berdasarkan nama atau tujuan' })
-    @ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Daftar paket wisata luar kota berhasil diambil',
-    })
-    async findAll(
-      @Query('page') page?: number,
-      @Query('limit') limit?: number,
-      @Query('status') status?: string,
-      @Query('search') search?: string,
-    ) {
-      if (search) {
-        return this.paketWisataLuarKotaService.searchPackages(search);
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as path from 'path';
+
+@ApiTags('Paket Wisata Luar Kota')
+@ApiBearerAuth()
+@Controller('paket-wisata-luar-kota')
+export class PaketWisataLuarKotaController {
+  constructor(private readonly paketWisataLuarKotaService: PaketWisataLuarKotaService) {}
+
+  // =========================================================================
+  // FILE UPLOAD ENDPOINTS (DITETAPKAN)
+  // =========================================================================
+
+  @UseGuards(JwtAuthGuard)
+  @Post('upload-images/:id')
+  @ApiOperation({ summary: 'Upload multiple images for a paket wisata Luar Kota' })
+  @ApiResponse({
+      status: 200,
+      description: 'Successfully uploaded travel package images',
+  })
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+      FilesInterceptor('images', 20, { 
+          storage: diskStorage({
+              destination: './public/package-images', 
+              filename: (req, file, cb) => {
+                  const uniqueSuffix =
+                      Date.now() + '-' + Math.round(Math.random() * 1e9);
+                  const fileExtName = path.extname(file.originalname);
+                  cb(null, `${file.fieldname}-luar-${uniqueSuffix}${fileExtName}`);
+              },
+          }),
+          fileFilter: (req, file, cb) => {
+              if (!file.mimetype.startsWith('image/')) {
+                  return cb(
+                      new BadRequestException('Invalid file type. Only images are allowed.'),
+                      false,
+                  );
+              }
+              cb(null, true);
+          },
+      }),
+  )
+  @ApiParam({ name: 'id', type: 'number', description: 'ID Paket Wisata Luar Kota' })
+  @ApiBody({
+      schema: {
+          type: 'object',
+          properties: {
+              images: {
+                  type: 'array',
+                  items: {
+                      type: 'string',
+                      format: 'binary',
+                  },
+                  description: 'Daftar file gambar paket wisata (Max 20)',
+              },
+          },
+      },
+  })
+  public async uploadFiles(
+      @Param('id', ParseIntPipe) id: number,
+      @UploadedFiles() files: Express.Multer.File[],
+  ) {
+      if (files.length < 1) {
+          throw new BadRequestException('Please upload at least one image');
       }
-  
-      const skip = page && limit ? (page - 1) * limit : undefined;
-      const take = limit;
-      const where = status ? { statusPaket: status } : undefined;
-  
-      return this.paketWisataLuarKotaService.findAll({
-        skip,
-        take,
-        where,
-        orderBy: { createdAt: 'desc' },
-      });
-    }
-  
-    @Get('active')
-    @ApiOperation({ summary: 'Mendapatkan paket wisata luar kota yang aktif' })
-    @ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Daftar paket wisata luar kota aktif berhasil diambil',
-    })
-    async getActivePackages() {
-      return this.paketWisataLuarKotaService.getActivePackages();
-    }
-  
-    @Get(':id')
-    @ApiOperation({ summary: 'Mendapatkan detail paket wisata luar kota' })
-    @ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Detail paket wisata luar kota berhasil diambil',
-      type: PaketWisataLuarKotaResponseDto,
-    })
-    @ApiResponse({
-      status: HttpStatus.NOT_FOUND,
-      description: 'Paket wisata luar kota tidak ditemukan',
-    })
-    async findOne(@Param('id', ParseIntPipe) id: number) {
-      return this.paketWisataLuarKotaService.findOne(id);
-    }
-  
-    @Patch(':id')
-    @ApiOperation({ summary: 'Mengupdate paket wisata luar kota' })
-    @ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Paket wisata luar kota berhasil diupdate',
-      type: PaketWisataLuarKotaResponseDto,
-    })
-    @ApiResponse({
-      status: HttpStatus.NOT_FOUND,
-      description: 'Paket wisata luar kota tidak ditemukan',
-    })
-    @ApiResponse({
-      status: HttpStatus.BAD_REQUEST,
-      description: 'Data tidak valid',
-    })
-    async update(
-      @Param('id', ParseIntPipe) id: number,
-      @Body() updateDto: UpdatePaketWisataLuarKotaDto,
-    ) {
-      return this.paketWisataLuarKotaService.update(id, updateDto);
-    }
-  
-    @Patch(':id/status')
-    @ApiOperation({ summary: 'Mengupdate status paket wisata luar kota' })
-    @ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Status paket wisata luar kota berhasil diupdate',
-    })
-    @ApiResponse({
-      status: HttpStatus.NOT_FOUND,
-      description: 'Paket wisata luar kota tidak ditemukan',
-    })
-    @ApiResponse({
-      status: HttpStatus.BAD_REQUEST,
-      description: 'Status tidak valid',
-    })
-    async updateStatus(
-      @Param('id', ParseIntPipe) id: number,
-      @Body('status') status: string,
-    ) {
-      return this.paketWisataLuarKotaService.updateStatus(id, status);
-    }
-  
-    @Delete(':id')
-    @ApiOperation({ summary: 'Menghapus paket wisata luar kota' })
-    @ApiResponse({
-      status: HttpStatus.OK,
-      description: 'Paket wisata luar kota berhasil dihapus',
-    })
-    @ApiResponse({
-      status: HttpStatus.NOT_FOUND,
-      description: 'Paket wisata luar kota tidak ditemukan',
-    })
-    @ApiResponse({
-      status: HttpStatus.BAD_REQUEST,
-      description: 'Tidak dapat menghapus paket yang memiliki booking aktif',
-    })
-    async remove(@Param('id', ParseIntPipe) id: number) {
-      return this.paketWisataLuarKotaService.remove(id);
-    }
+      
+      return await this.paketWisataLuarKotaService.uploadImages(id, files);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Delete('delete-image/:id')
+  @ApiOperation({ summary: 'Delete a specific image from a paket wisata Luar Kota' })
+  @ApiParam({ name: 'id', type: 'number', description: 'ID Paket Wisata Luar Kota' })
+  @ApiQuery({ name: 'imageName', type: 'string', description: 'Nama file gambar yang akan dihapus' })
+  @ApiResponse({ status: 200, description: 'Image deleted successfully' })
+  @ApiResponse({ status: 404, description: 'Paket wisata or image not found' })
+  public async deleteImage(
+      @Param('id', ParseIntPipe) id: number,
+      @Query('imageName') imageName: string,
+  ) {
+      if (!imageName) {
+          throw new BadRequestException('Image name is required as a query parameter.');
+      }
+      return await this.paketWisataLuarKotaService.deleteImage(id, imageName);
+  }
+  @UseGuards(JwtAuthGuard)
+  @Post('add')
+  @HttpCode(HttpStatus.CREATED)
+  async create(@Body(ValidationPipe) createPaketWisataLuarKotaDto: CreatePaketWisataLuarKotaDto) {
+    const paket = await this.paketWisataLuarKotaService.createPaketWisataLuarKota(createPaketWisataLuarKotaDto);
+    return { statusCode: HttpStatus.CREATED, message: 'Paket wisata luar kota created successfully', data: paket };
+  }
+
+  @Get('all')
+  async findAll() {
+    const paketWisata = await this.paketWisataLuarKotaService.findAllPaketWisataLuarKota();
+    return { statusCode: HttpStatus.OK, message: 'Paket wisata luar kota retrieved successfully', data: paketWisata };
+  }
+
+  @Get(':id')
+  async findOne(@Param('id', ParseIntPipe) id: number) {
+    const paket = await this.paketWisataLuarKotaService.findOnePaketWisataLuarKota(id);
+    return { statusCode: HttpStatus.OK, message: 'Paket wisata luar kota retrieved successfully', data: paket };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  async update(@Param('id', ParseIntPipe) id: number, @Body(ValidationPipe) updatePaketWisataLuarKotaDto: UpdatePaketWisataLuarKotaDto) {
+    // MEMANGGIL METHOD YANG BENAR DARI SERVICE
+    const paket = await this.paketWisataLuarKotaService.updatePaketWisataLuarKota(id, updatePaketWisataLuarKotaDto);
+    return { statusCode: HttpStatus.OK, message: 'Paket wisata luar kota updated successfully', data: paket };
+  }
+
+
+
+// @Patch(':id')
+// async update(@Param('id', ParseIntPipe) id: number, @Body(ValidationPipe) updatePaketWisataLuarKotaDto: UpdatePaketWisataLuarKotaDto) {
+//   // Tambahkan log ini:
+//   console.log('Received Update Payload:', updatePaketWisataLuarKotaDto); 
+//   // Pastikan Anda melihat detailRute, hargaEstimasi, dan tanggal di sini.
+  
+//   const paket = await this.paketWisataLuarKotaService.updatePaketWisataLuarKota(id, updatePaketWisataLuarKotaDto);
+//   return { statusCode: HttpStatus.OK, message: 'Paket wisata luar kota updated successfully', data: paket };
+// }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id/status')
+  async updateStatus(@Param('id', ParseIntPipe) id: number, @Body('status', new ValidationPipe({ transform: true })) status: StatusPaket) {
+    
+    const paket = await this.paketWisataLuarKotaService.updateStatus(id, status);
+    return { statusCode: HttpStatus.OK, message: 'Paket wisata luar kota status updated successfully', data: paket };
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  async remove(@Param('id', ParseIntPipe) id: number) {
+    
+    await this.paketWisataLuarKotaService.removePaketWisataLuarKota(id);
+    return { statusCode: HttpStatus.OK, message: 'Paket wisata luar kota deleted successfully' };
+  }
+}

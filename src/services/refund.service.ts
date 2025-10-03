@@ -1,174 +1,297 @@
 import {
-    Injectable,
-    NotFoundException,
-    BadRequestException,
-  } from '@nestjs/common';
-  import { PrismaService } from '../prisma/prisma.service';
-  import { CreateRefundDto } from '../dto/create_refund.dto';
-  import { StatusRefund } from 'src/database/entities/refund.entity'; 
-  import { Decimal } from 'generated/prisma/runtime/library'; 
-  
-  @Injectable()
-  export class RefundService {
-    constructor(private readonly prisma: PrismaService) {}
-  
-    async create(createRefundDto: CreateRefundDto, userId: number) {
-      const { pesananId, pesananLuarKotaId, bookingId, pembayaranId, ...rest } = createRefundDto;
-  
-      const refCount = [pesananId, pesananLuarKotaId, bookingId].filter(Boolean).length;
-      if (refCount !== 1) {
-        throw new BadRequestException('Must select only one: pesanan, pesanan luar kota, or booking.');
-      }
-  
-      const kodeRefund = await this.generateRefundCode();
-      const tanggalPengajuan = new Date();
-  
-      const jumlahRefundFinal = rest.jumlahRefund - rest.jumlahPotonganAdmin;
-  
-      return await this.prisma.refund.create({
-        data: {
-          ...rest,
-          pesananId,
-          pesananLuarKotaId,
-          bookingId,
-          pembayaranId,
-          userId,
-          kodeRefund,
-          tanggalPengajuan,
-          jumlahRefundFinal,
-          statusRefund: StatusRefund.PENDING,
-        },
-      });
-    }
-  
-    async findAll() {
-      return await this.prisma.refund.findMany({
-        include: {
-          user: true,
-          pesanan: true,
-          pesananLuarKota: true,
-          booking: true,
-          pembayaran: true,
-          approvedByAdmin: true,
-          processedByAdmin: true,
-        },
-      });
-    }
-  
-    async findOne(id: number) {
-      const refund = await this.prisma.refund.findUnique({
-        where: { refundId: id },
-        include: {
-          user: true,
-          pesanan: true,
-          pesananLuarKota: true,
-          booking: true,
-          pembayaran: true,
-          approvedByAdmin: true,
-          processedByAdmin: true,
-        },
-      });
-  
-      if (!refund) {
-        throw new NotFoundException(`Refund with ID ${id} not found`);
-      }
-  
-      return refund;
-    }
-  
-    async approve(id: number, adminId: number, potonganAdmin = 0) {
-      const refund = await this.findOne(id);
-  
-      if (refund.statusRefund !== StatusRefund.PENDING) {
-        throw new BadRequestException('Refund has already been processed');
-      }
-  
-      const jumlahRefundFinal = new Decimal(refund.jumlahRefund).minus(potonganAdmin);
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateRefundDto, RefundStatus } from 'src/dto/create_refund.dto';
+import { UpdateRefundDto } from 'src/dto/update_refund.dto';
+import { Refund, Prisma } from '@prisma/client';
 
-  
-      return await this.prisma.refund.update({
-        where: { refundId: id },
-        data: {
-          statusRefund: StatusRefund.APPROVED,
-          approvedByAdminId: adminId,
-          tanggalDisetujui: new Date(),
-          jumlahPotonganAdmin: potonganAdmin,
-          jumlahRefundFinal,
-        },
-      });
+interface AuthUser {
+  id: number;
+  role: 'user' | 'admin';
+}
+
+@Injectable()
+export class RefundService {
+  constructor(private prisma: PrismaService) {}
+
+  async createRefund(userId: number, bookingId: number, dto: CreateRefundDto) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { bookingId },
+      include: { pembayaran: true },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking tidak ditemukan.');
     }
-  
-    async reject(id: number, adminId: number, catatanAdmin: string) {
-      const refund = await this.findOne(id);
-  
-      if (refund.statusRefund !== StatusRefund.PENDING) {
-        throw new BadRequestException('Refund has already been processed');
+
+    if (booking.userId !== userId) {
+      throw new BadRequestException(
+        'Booking does not belong to the current user.',
+      );
+    }
+
+    const existingRefund = await this.prisma.refund.findFirst({
+      where: {
+        bookingId,
+        statusRefund: {
+          in: [
+            RefundStatus.PENDING,
+            RefundStatus.APPROVED,
+            RefundStatus.PROCESSING,
+            RefundStatus.COMPLETED,
+          ],
+        },
+      },
+    });
+
+    console.log('Booking:', booking);
+    console.log('Current userId:', userId);
+
+    if (existingRefund) {
+      throw new BadRequestException('Refund sudah diajukan untuk booking ini.');
+    }
+
+    const refund = await this.prisma.refund.create({
+      data: {
+        userId,
+        bookingId,
+        pembayaranId: dto.pembayaranId,
+        alasanRefund: dto.alasanRefund,
+        jumlahRefund: dto.jumlahRefund,
+        metodeRefund: dto.metodeRefund,
+        rekeningTujuan: dto.rekeningTujuan,
+        statusRefund: RefundStatus.PENDING,
+        kodeRefund: `REF-${Date.now()}`,
+        jumlahPotonganAdmin: 20,
+        jumlahRefundFinal: dto.jumlahRefund,
+        tanggalPengajuan: new Date(),
+      },
+    });
+
+    return refund;
+  }
+
+  // ---------------- GET REFUNDS BY USER ----------------
+  async getRefundsByUser(userId: number) {
+    return this.prisma.refund.findMany({
+      where: { userId },
+      include: {
+        booking: true,
+        pembayaran: true,
+        pesanan: true,
+        pesananLuarKota: true,
+      },
+    });
+  }
+
+  async checkBookingEligibility(userId: number, bookingId: number) {
+    const booking = await this.prisma.booking.findUnique({
+      where: { bookingId },
+      include: { pembayaran: true },
+    });
+    
+    console.log('Booking:', booking);
+    console.log('Current userId:', userId);
+    if (!booking) throw new NotFoundException('Booking tidak ditemukan');
+    if (booking.userId !== userId)
+      throw new ForbiddenException(
+        'Booking does not belong to the current user',
+      );
+
+    const existingRefund = await this.prisma.refund.findFirst({
+      where: {
+        bookingId,
+        statusRefund: {
+          in: [
+            RefundStatus.PENDING,
+            RefundStatus.APPROVED,
+            RefundStatus.PROCESSING,
+            RefundStatus.COMPLETED,
+          ],
+        },
+      },
+    });
+
+
+    if (existingRefund)
+      throw new BadRequestException(
+        'Refund sudah pernah diajukan untuk booking ini',
+      );
+
+    return {
+      eligible: true,
+      booking,
+      message: 'Booking eligible untuk refund',
+    };
+  }
+
+  // ---------------- GET ALL REFUNDS ----------------
+  async findAllRefunds(): Promise<Refund[]> {
+    return this.prisma.refund.findMany({
+      include: {
+        user: true,
+        pembayaran: true,
+        pesanan: true,
+        pesananLuarKota: true,
+        booking: true,
+        approvedByAdmin: true,
+        processedByAdmin: true,
+      },
+    });
+  }
+
+  // ---------------- GET ONE REFUND ----------------
+  async findOneRefund(id: number): Promise<Refund> {
+    const refund = await this.prisma.refund.findUnique({
+      where: { refundId: id },
+      include: {
+        user: true,
+        pembayaran: true,
+        pesanan: true,
+        pesananLuarKota: true,
+        booking: true,
+        approvedByAdmin: true,
+        processedByAdmin: true,
+      },
+    });
+
+    if (!refund) {
+      throw new NotFoundException(`Refund with ID ${id} not found.`);
+    }
+
+    return refund;
+  }
+
+  // ---------------- UPDATE REFUND ----------------
+  async updateRefund(id: number, dto: UpdateRefundDto): Promise<Refund> {
+    const existingRefund = await this.findOneRefund(id);
+
+    // Validasi status
+    if (dto.statusRefund) {
+      const currentStatus = existingRefund.statusRefund;
+      const newStatus = dto.statusRefund;
+
+      if (
+        (newStatus === RefundStatus.APPROVED &&
+          currentStatus !== RefundStatus.PENDING) ||
+        (newStatus === RefundStatus.COMPLETED &&
+          currentStatus !== RefundStatus.PROCESSING) ||
+        (newStatus === RefundStatus.REJECTED &&
+          currentStatus !== RefundStatus.PENDING)
+      ) {
+        throw new BadRequestException(
+          `Invalid status transition from ${currentStatus} to ${newStatus}`,
+        );
       }
-  
+
+      if (newStatus === RefundStatus.APPROVED)
+        dto.tanggalDisetujui = new Date().toISOString();
+      if (newStatus === RefundStatus.COMPLETED)
+        dto.tanggalRefundSelesai = new Date().toISOString();
+    }
+
+    const data: Prisma.RefundUpdateInput = {
+      alasanRefund: dto.alasanRefund,
+      jumlahRefund:
+        dto.jumlahRefund !== undefined
+          ? new Prisma.Decimal(dto.jumlahRefund)
+          : undefined,
+      metodeRefund: dto.metodeRefund,
+      rekeningTujuan: dto.rekeningTujuan,
+      statusRefund: dto.statusRefund,
+      jumlahPotonganAdmin:
+        dto.jumlahPotonganAdmin !== undefined
+          ? new Prisma.Decimal(dto.jumlahPotonganAdmin)
+          : undefined,
+      jumlahRefundFinal:
+        dto.jumlahRefundFinal !== undefined
+          ? new Prisma.Decimal(dto.jumlahRefundFinal)
+          : undefined,
+      buktiRefund: dto.buktiRefund,
+      catatanAdmin: dto.catatanAdmin,
+      tanggalDisetujui: dto.tanggalDisetujui
+        ? new Date(dto.tanggalDisetujui)
+        : undefined,
+      tanggalRefundSelesai: dto.tanggalRefundSelesai
+        ? new Date(dto.tanggalRefundSelesai)
+        : undefined,
+
+      // Relasi
+      pesanan:
+        dto.pesananId !== undefined
+          ? dto.pesananId === null
+            ? { disconnect: true }
+            : { connect: { pesananId: dto.pesananId } }
+          : undefined,
+      pesananLuarKota:
+        dto.pesananLuarKotaId !== undefined
+          ? dto.pesananLuarKotaId === null
+            ? { disconnect: true }
+            : { connect: { pesananLuarKotaId: dto.pesananLuarKotaId } }
+          : undefined,
+      booking:
+        dto.bookingId !== undefined
+          ? dto.bookingId === null
+            ? { disconnect: true }
+            : { connect: { bookingId: dto.bookingId } }
+          : undefined,
+    };
+
+    // Mutual exclusivity pesanan / booking
+    if (dto.pesananId) {
+      data.pesananLuarKota = { disconnect: true };
+      data.booking = { disconnect: true };
+    } else if (dto.pesananLuarKotaId) {
+      data.pesanan = { disconnect: true };
+      data.booking = { disconnect: true };
+    } else if (dto.bookingId) {
+      data.pesanan = { disconnect: true };
+      data.pesananLuarKota = { disconnect: true };
+    }
+
+    try {
       return await this.prisma.refund.update({
         where: { refundId: id },
-        data: {
-          statusRefund: StatusRefund.REJECTED,
-          approvedByAdminId: adminId,
-          tanggalDisetujui: new Date(),
-          catatanAdmin,
-        },
-      });
-    }
-  
-    async process(id: number, adminId: number, buktiRefund: string) {
-      const refund = await this.findOne(id);
-  
-      if (refund.statusRefund !== StatusRefund.APPROVED) {
-        throw new BadRequestException('Refund has not been approved yet');
-      }
-  
-      return await this.prisma.refund.update({
-        where: { refundId: id },
-        data: {
-          statusRefund: StatusRefund.PROCESSING,
-          processedByAdminId: adminId,
-          buktiRefund,
-        },
-      });
-    }
-  
-    async complete(id: number) {
-      const refund = await this.findOne(id);
-  
-      if (refund.statusRefund !== StatusRefund.PROCESSING) {
-        throw new BadRequestException('Refund is not in processing status');
-      }
-  
-      return await this.prisma.refund.update({
-        where: { refundId: id },
-        data: {
-          statusRefund: StatusRefund.COMPLETED,
-          tanggalRefundSelesai: new Date(),
-        },
-      });
-    }
-  
-    async getRefundHistory(userId: number) {
-      return await this.prisma.refund.findMany({
-        where: { userId },
+        data,
         include: {
+          user: true,
+          pembayaran: true,
           pesanan: true,
           pesananLuarKota: true,
           booking: true,
-          pembayaran: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
+          approvedByAdmin: true,
+          processedByAdmin: true,
         },
       });
-    }
-  
-    private async generateRefundCode(): Promise<string> {
-      const prefix = 'RF';
-      const timestamp = Date.now().toString().slice(-6);
-      const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-      return `${prefix}${timestamp}${random}`;
+    } catch (error) {
+      console.error(`Error updating refund with ID ${id}:`, error);
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`Refund with ID ${id} not found.`);
+      }
+      throw error;
     }
   }
+
+  // ---------------- DELETE REFUND ----------------
+  async removeRefund(id: number, user: AuthUser) {
+    const refund = await this.findOneRefund(id);
   
+    if (user.role === 'user') {
+      if (refund.userId !== user.id)  // <- gunakan id
+        throw new ForbiddenException('Access denied');
+      if (refund.statusRefund !== RefundStatus.PENDING)
+        throw new BadRequestException(
+          'Can only delete pending refund requests',
+        );
+    }
+  
+    return this.prisma.refund.delete({ where: { refundId: id } });
+  }  
+}

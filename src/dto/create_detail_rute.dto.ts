@@ -3,9 +3,9 @@ import { Type } from 'class-transformer';
 
 export class CreateDetailRuteDto {
   @IsInt()
-  @Min(1)
+  @IsNotEmpty()
   @Type(() => Number)
-  paketLuarKotaId: number;
+  paketLuarKotaId: number; // Required for direct creation of DetailRuteLuarKota
 
   @IsInt()
   @Min(1)

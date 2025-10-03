@@ -1,10 +1,15 @@
-import { IsEmail, IsString, MinLength } from 'class-validator';
+// src/dto/auth/login.dto.ts
+import { IsEmail, IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger'; // Untuk dokumentasi Swagger
 
 export class LoginDto {
-  @IsEmail({}, { message: 'Email harus berformat valid' })
+  @ApiProperty({ description: 'Email pengguna atau admin' })
+  @IsEmail({}, { message: 'Email tidak valid' })
+  @IsNotEmpty({ message: 'Email tidak boleh kosong' })
   email: string;
 
-  @IsString({ message: 'Password harus berupa string' })
-  @MinLength(6, { message: 'Password minimal 6 karakter' })
+  @ApiProperty({ description: 'Kata sandi pengguna atau admin' })
+  @IsString()
+  @IsNotEmpty({ message: 'Password tidak boleh kosong' })
   password: string;
 }

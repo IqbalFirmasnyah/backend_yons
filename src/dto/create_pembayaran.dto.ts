@@ -6,6 +6,9 @@ export class CreatePembayaranDto {
   pesananId?: number;
 
   @IsOptional()
+  bookingId?: number;
+
+  @IsOptional()
   pesananLuarKotaId?: number;
 
   @IsNumber()

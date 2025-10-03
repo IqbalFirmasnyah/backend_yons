@@ -1,21 +1,12 @@
-import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsOptional, IsInt, IsArray, ValidateNested } from 'class-validator';
-import { CreateDetailRuteDto, CreatePaketWisataLuarKotaDto } from './create_paket_wisata_luar.dto';
-
-export class UpdateDetailRuteDto extends PartialType(CreateDetailRuteDto) {
-  @ApiProperty({ description: 'ID rute (untuk update)', required: false })
-  @IsOptional()
-  @IsInt()
-  @Type(() => Number)
-  ruteId?: number;
-}
+import { PartialType } from '@nestjs/swagger';
+import { CreatePaketWisataLuarKotaDto } from './create_paket_wisata_luar.dto';
+import { IsOptional, IsISO8601 } from 'class-validator';
 
 export class UpdatePaketWisataLuarKotaDto extends PartialType(CreatePaketWisataLuarKotaDto) {
-  @ApiProperty({ type: [UpdateDetailRuteDto], description: 'Detail rute perjalanan', required: false })
+  // Semua field dari CreatePaketWisataLuarKotaDto menjadi optional
+  // Termasuk pilihTanggal yang sudah didefinisikan dalam CreatePaketWisataLuarKotaDto
+  
   @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => UpdateDetailRuteDto)
-  urutanKe?: UpdateDetailRuteDto[];
+  @IsISO8601()
+  pilihTanggal?: string; // Override untuk memastikan optional pada update
 }

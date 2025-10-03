@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
+import { ConfigModule } from '@nestjs/config';
 import { JwtAuthGuard } from './auth/strategies/jwt_auth.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { ArmadaModule } from './modules/armada/armada.module'; 
@@ -10,17 +11,34 @@ import { PesananModule } from './modules/pesanan/pesanan.module';
 import { PesananLuarKotaModule } from './modules/pesanan_luar_kota/pesanan_luar_kota.module'; 
 import { SupirModule } from './modules/supir/supir.module';
 import { AssignmentSupirModule } from './modules/assignment_supir/assignment_supir.module';
-import { UpdateStatusBookingModule } from './modules/status_booking/status_booking.module';
+// import { UpdateStatusBookingModule } from './modules/status_booking/status_booking.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { RefundModule } from './modules/refund/refund.module';
 import { UserModule } from './modules/users/users.module';
 import { DetailRuteModule } from './modules/detailRute/detail_rute.modul';
 import { NotifikasiModule } from './modules/notifikasi/notifikasi.module';
 import { AdminModule } from './modules/admin/admin.module';
-import { PembayaranModule } from './modules/pembayaran/pembayaran.module';
+import { PaymentModule } from './modules/pembayaran/pembayaran.module';
+import { FasilitasModule } from './modules/fasilitas/fasilitas.module';
+import { DropoffModule } from './modules/dropoff/dropoff.module';
+import { CustomRuteFasilitasModule } from './modules/custom-rute-fasilitas/custom-rute-fasilitas.module';
+import { RescheduleModule } from './modules/reschedule/reschedule.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+import { NotificationModule } from './notification/notification.module';
+
+
 
 @Module({
   imports: [
+    ConfigModule.forRoot({
+      isGlobal: true, // Membuat ConfigModule tersedia secara global
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public'), // project-root/public
+      serveRoot: '/public', // available at http://localhost:3000/public/...
+    }),
+    
     AuthModule,
     PrismaModule,
     ArmadaModule,
@@ -30,14 +48,19 @@ import { PembayaranModule } from './modules/pembayaran/pembayaran.module';
     PesananLuarKotaModule,
     SupirModule,
     AssignmentSupirModule,
-    UpdateStatusBookingModule,
+    // UpdateStatusBookingModule,
     BookingModule,
     RefundModule,
     UserModule,
     DetailRuteModule,
     NotifikasiModule,
     AdminModule,
-    PembayaranModule
+    PaymentModule,
+    FasilitasModule,
+    CustomRuteFasilitasModule,
+    DropoffModule,
+    RescheduleModule,
+    NotificationModule
   ],
   providers: [
     {
