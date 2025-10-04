@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateRefundDto, RefundStatus } from 'src/dto/create_refund.dto';
 import { UpdateRefundDto } from 'src/dto/update_refund.dto';
 import { Refund, Prisma } from '@prisma/client';
+import { PushNotificationService } from './notification/push-notification.service';
+import { NotificationGateway } from 'src/notification/notification.gateway';
 
 interface AuthUser {
   id: number;
@@ -16,8 +18,13 @@ interface AuthUser {
 
 @Injectable()
 export class RefundService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private push: PushNotificationService,
+    private gateway: NotificationGateway,
+  ) {}
 
+  // ---------------- CREATE REFUND ----------------
   async createRefund(userId: number, bookingId: number, dto: CreateRefundDto) {
     const booking = await this.prisma.booking.findUnique({
       where: { bookingId },
@@ -48,9 +55,6 @@ export class RefundService {
       },
     });
 
-    console.log('Booking:', booking);
-    console.log('Current userId:', userId);
-
     if (existingRefund) {
       throw new BadRequestException('Refund sudah diajukan untuk booking ini.');
     }
@@ -66,11 +70,29 @@ export class RefundService {
         rekeningTujuan: dto.rekeningTujuan,
         statusRefund: RefundStatus.PENDING,
         kodeRefund: `REF-${Date.now()}`,
-        jumlahPotonganAdmin: 20,
+        jumlahPotonganAdmin: new Prisma.Decimal(20),
         jumlahRefundFinal: dto.jumlahRefund,
         tanggalPengajuan: new Date(),
       },
     });
+
+    // 🔔 Notifikasi: refund diajukan (PENDING)
+    const payload = {
+      bookingId,
+      refundId: refund.refundId,
+      amount: Number(refund.jumlahRefundFinal ?? refund.jumlahRefund),
+      status: refund.statusRefund,
+      updatedAt: new Date().toISOString(),
+    };
+    console.log('[SERVER] sending booking.refunded (create)', userId, payload);
+    this.gateway.bookingRefunded(userId, {
+      bookingId: payload.bookingId,
+      refundId: payload.refundId,
+      status: payload.status,
+      updatedAt: payload.updatedAt,
+      amount: payload.amount,
+    });
+    this.push.bookingRefunded(userId, payload);
 
     return refund;
   }
@@ -88,14 +110,12 @@ export class RefundService {
     });
   }
 
+  // ---------------- CHECK ELIGIBILITY (user-ownership + no existing active refund) ----------------
   async checkBookingEligibility(userId: number, bookingId: number) {
     const booking = await this.prisma.booking.findUnique({
       where: { bookingId },
       include: { pembayaran: true },
     });
-    
-    console.log('Booking:', booking);
-    console.log('Current userId:', userId);
     if (!booking) throw new NotFoundException('Booking tidak ditemukan');
     if (booking.userId !== userId)
       throw new ForbiddenException(
@@ -116,7 +136,6 @@ export class RefundService {
       },
     });
 
-
     if (existingRefund)
       throw new BadRequestException(
         'Refund sudah pernah diajukan untuk booking ini',
@@ -129,7 +148,7 @@ export class RefundService {
     };
   }
 
-  // ---------------- GET ALL REFUNDS ----------------
+  // ---------------- GET ALL REFUNDS (ADMIN) ----------------
   async findAllRefunds(): Promise<Refund[]> {
     return this.prisma.refund.findMany({
       include: {
@@ -170,7 +189,7 @@ export class RefundService {
   async updateRefund(id: number, dto: UpdateRefundDto): Promise<Refund> {
     const existingRefund = await this.findOneRefund(id);
 
-    // Validasi status
+    // Validasi transisi status
     if (dto.statusRefund) {
       const currentStatus = existingRefund.statusRefund;
       const newStatus = dto.statusRefund;
@@ -253,45 +272,86 @@ export class RefundService {
       data.pesananLuarKota = { disconnect: true };
     }
 
-    try {
-      return await this.prisma.refund.update({
-        where: { refundId: id },
-        data,
-        include: {
-          user: true,
-          pembayaran: true,
-          pesanan: true,
-          pesananLuarKota: true,
-          booking: true,
-          approvedByAdmin: true,
-          processedByAdmin: true,
-        },
-      });
-    } catch (error) {
-      console.error(`Error updating refund with ID ${id}:`, error);
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2025'
-      ) {
-        throw new NotFoundException(`Refund with ID ${id} not found.`);
-      }
-      throw error;
-    }
+    const updatedRefund = await this.prisma.refund.update({
+      where: { refundId: id },
+      data,
+      include: {
+        user: true,
+        pembayaran: true,
+        pesanan: true,
+        pesananLuarKota: true,
+        booking: true,
+        approvedByAdmin: true,
+        processedByAdmin: true,
+      },
+    });
+
+    // 🔔 Notifikasi: status refund berubah
+    const payload = {
+      bookingId: updatedRefund.bookingId!, // bookingId dijamin ada kalau diajukan dari booking
+      refundId: updatedRefund.refundId,
+      amount: Number(
+        updatedRefund.jumlahRefundFinal ?? updatedRefund.jumlahRefund,
+      ),
+      status: updatedRefund.statusRefund,
+      updatedAt: new Date().toISOString(),
+    };
+    console.log(
+      '[SERVER] sending booking.refunded (update)',
+      updatedRefund.userId,
+      payload,
+    );
+    this.gateway.bookingRefunded(updatedRefund.userId, {
+      bookingId: payload.bookingId,
+      refundId: payload.refundId,
+      status: payload.status,
+      updatedAt: payload.updatedAt,
+      amount: payload.amount,
+    });
+    this.push.bookingRefunded(updatedRefund.userId, payload);
+
+    return updatedRefund;
   }
 
   // ---------------- DELETE REFUND ----------------
   async removeRefund(id: number, user: AuthUser) {
     const refund = await this.findOneRefund(id);
-  
+
     if (user.role === 'user') {
-      if (refund.userId !== user.id)  // <- gunakan id
+      if (refund.userId !== user.id)
         throw new ForbiddenException('Access denied');
       if (refund.statusRefund !== RefundStatus.PENDING)
         throw new BadRequestException(
           'Can only delete pending refund requests',
         );
     }
-  
-    return this.prisma.refund.delete({ where: { refundId: id } });
-  }  
+
+    const deleted = await this.prisma.refund.delete({
+      where: { refundId: id },
+    });
+
+    // 🔔 Notifikasi (opsional): beritahu penghapusan refund
+    const payload = {
+      bookingId: refund.bookingId!,
+      refundId: refund.refundId,
+      status: 'deleted',
+      amount: Number(refund.jumlahRefundFinal ?? refund.jumlahRefund),
+      updatedAt: new Date().toISOString(),
+    };
+    console.log(
+      '[SERVER] sending booking.refunded (deleted)',
+      refund.userId,
+      payload,
+    );
+    this.gateway.bookingRefunded(refund.userId, {
+      bookingId: payload.bookingId,
+      refundId: payload.refundId,
+      status: payload.status,
+      updatedAt: payload.updatedAt,
+      amount: payload.amount,
+    });
+    this.push.bookingRefunded(refund.userId, payload);
+
+    return deleted;
+  }
 }

@@ -1,64 +1,66 @@
-// src/notification/notification.gateway.ts
-import { 
-  WebSocketGateway, WebSocketServer, OnGatewayConnection, OnGatewayDisconnect
+import {
+  WebSocketGateway, WebSocketServer, SubscribeMessage,
+  MessageBody, ConnectedSocket
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { JwtService } from '@nestjs/jwt'; 
-import { UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config'; // Opsional jika secret berbeda
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 
 @WebSocketGateway({
-  cors: { origin: 'http://localhost:3000' }, // Sesuaikan dengan domain frontend
+  cors: { origin: ['http://localhost:3000'], credentials: true },
+  transports: ['websocket', 'polling'],
+  path: '/socket.io',
 })
-export class NotificationGateway implements OnGatewayConnection, OnGatewayDisconnect {
+export class NotificationGateway {
   @WebSocketServer() server: Server;
 
-  // Inject JwtService
   constructor(
-    private readonly jwtService: JwtService,
-    private readonly configService: ConfigService 
-    // Anda bisa inject PrismaService juga jika perlu fetch data user seperti di JwtStrategy
+    private readonly jwt: JwtService,
+    private readonly config: ConfigService,
   ) {}
 
-  async handleConnection(client: Socket, ...args: any[]) {
+  // client akan kirim { token }
+  @SubscribeMessage('register')
+  async onRegister(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { token?: string },
+  ) {
     try {
-      // 1. Dapatkan Token dari Header
-      const token = client.handshake.headers.authorization?.split(' ')[1];
-      
-      if (!token) {
-        throw new UnauthorizedException('Token tidak ada.');
+      const raw = (data?.token ?? '').replace(/^Bearer\s+/i, '');
+      if (!raw) {
+        client.emit('register.error', { message: 'no token provided' });
+        return;
       }
 
-      // 2. Verifikasi Token secara manual
-      const secret = this.configService.get<string>('JWT_SECRET'); // Ambil secret
-      const payload = await this.jwtService.verifyAsync(token, { secret }); 
-      
-      const userId = payload.sub; // Ambil ID dari 'sub' (subjek)
+      const secret = this.config.get<string>('JWT_ACCESS_SECRET')!;
+      const payload = this.jwt.verify(raw, { secret }); // throw kalau salah/expired
+      const userId = payload.sub ?? payload.id ?? payload.userId;
+      if (!userId) throw new Error('no user id claim in token');
 
-      if (!userId) {
-        throw new UnauthorizedException('Payload token tidak valid.');
-      }
-
-      // 3. Simpan ID dan Tetapkan ke Room
-      (client as any).userId = userId; // Menyimpan ID di objek socket
-      client.join(userId); // Menetapkan client ke room berdasarkan userId
-
-      console.log(`User ${userId} (${client.id}) terhubung.`);
-      
-    } catch (error) {
-      console.error('WebSocket Auth Failed:', error.message);
-      client.emit('error', 'Autentikasi gagal. Silakan login ulang.');
-      client.disconnect(); // Tolak koneksi
+      const room = `user:${userId}`;
+      client.join(room);
+      client.emit('registered', { room });
+      console.log('[WS] register OK =>', room);
+    } catch (e: any) {
+      console.error('[WS] register failed:', e);
+      client.emit('register.error', { message: e?.message || 'invalid token' });
     }
   }
 
-  handleDisconnect(client: Socket) {
-    const userId = (client as any).userId;
-    console.log(`User ${userId} terputus.`);
+  // helper kirim event ke user
+  emitToUser(userId: number | string, event: string, payload: any) {
+    this.server.to(`user:${userId}`).emit(event, payload);
   }
 
-  // Method untuk mengirim notifikasi
-  sendNotificationToUser(targetUserId: string, data: any) {
-    this.server.to(targetUserId).emit('notification_new', data);
+  bookingStatusChanged(userId: number, payload: { bookingId: number; newStatus: string; updatedAt: string; }) {
+    this.emitToUser(userId, 'booking.status.changed', payload);
   }
+  bookingRescheduled(userId: number, payload: { bookingId: number; newDate: string; updatedAt: string; }) {
+    this.emitToUser(userId, 'booking.rescheduled', payload);
+  }
+  bookingRefunded(userId: number, payload: { bookingId: number; refundId: number; status: string; updatedAt: string; amount?: number; }) {
+    this.emitToUser(userId, 'booking.refunded', payload);
+  }
+
+  
 }

@@ -56,6 +56,7 @@ export class BookingController {
     private readonly armadaService: ArmadaService, 
     private readonly supirService: SupirService,
     private readonly customRuteService: CustomRuteFasilitasService,
+    
     ) {}
 
   @Post()

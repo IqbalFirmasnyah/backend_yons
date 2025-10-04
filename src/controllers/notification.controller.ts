@@ -1,41 +1,47 @@
-// src/notification/test.controller.ts
+// src/controllers/notification.controller.ts
+import { Body, Controller, Delete, Get, Post, Query, UseGuards, Req } from '@nestjs/common';
+import { PushNotificationService } from 'src/services/notification/push-notification.service';
+import { PushSubscriptionDto } from 'src/dto/push-subscription.dto';
+import { JwtAuthGuard } from 'src/auth/strategies/jwt_auth.guard';
+import { Request } from 'express';
 
-import { Controller, Post, Body, UseGuards } from "@nestjs/common";
-import { AuthGuard } from '@nestjs/passport'; // Untuk melindungi endpoint
-import { NotificationGateway } from "src/notification/notification.gateway";
-import { GetUser } from "src/public/get_user.decorator";
-import { SubscriptionService } from "src/services/notification/subscription.service";
+@Controller('notifications')
+export class PushController {
+  constructor(private push: PushNotificationService) {}
 
-// Asumsi tipe payload JWT Anda
-interface UserPayload {
-    id: string; // Properti yang memegang userId/adminId dari payload.sub
-    // ... properti lain dari JwtStrategy return value
-}
-
-
-@Controller('test')
-// Lindungi seluruh controller dengan JWT Guard
-@UseGuards(AuthGuard('jwt')) 
-export class TestController {
-  constructor(private readonly notificationGateway: NotificationGateway) {}
-
-  // Endpoint yang mengirim notifikasi kepada pengguna yang SAMA dengan yang membuat request
-  @Post('notify-self')
-  triggerSelfNotification(@GetUser() user: UserPayload) {
-    // ID diambil dari payload JWT yang sudah divalidasi
-    const userId = user.id; 
-    
-    const data = { 
-      message: `Notifikasi Test untuk ${userId} dipicu pada ${Date.now()}`,
-      timestamp: Date.now() 
-    };
-
-    // Panggil method untuk mengirim ke room milik pengguna ini
-    this.notificationGateway.sendNotificationToUser(userId, data); 
-    
-    return { success: true, message: `Notifikasi terkirim ke ${userId}` };
+  @Get('vapid-public-key')
+  getPublicKey() {
+    return { publicKey: this.push.getPublicKey() };
   }
 
-  
-}
+  // Simpan/Update subscription user yang sedang login
+  @UseGuards(JwtAuthGuard)
+  @Post('subscribe')
+  async subscribe(@Req() req: Request, @Body() dto: PushSubscriptionDto) {
+    const user = req.user as any; // dari JwtStrategy.validate()
+    await this.push.saveSubscription(Number(user.id), dto);
+    return { ok: true };
+  }
 
+  // Hapus subscription berdasarkan endpoint
+  @UseGuards(JwtAuthGuard)
+  @Delete('unsubscribe')
+  async unsubscribe(@Query('endpoint') endpoint: string) {
+    if (!endpoint) return { ok: false, message: 'endpoint required' };
+    const ok = await this.push.removeSubscription(endpoint);
+    return { ok };
+  }
+
+  // Endpoint test kirim push ke user tertentu (mis. via Postman)
+  // body: { userId: number, title: string, body: string, url?: string, data?: any }
+  @Post('test')
+  async test(@Body() b: { userId: number; title?: string; body?: string; url?: string; data?: any }) {
+    const payload = {
+      title: b.title ?? 'Test Push',
+      body: b.body ?? 'Hello from server!',
+      url: b.url,
+      data: b.data,
+    };
+    return this.push.pushToUser(b.userId, payload);
+  }
+}

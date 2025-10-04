@@ -4,6 +4,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { LoggingInterceptor } from './logging.interceptor';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
+import { IoAdapter } from '@nestjs/platform-socket.io';
 
 
 async function bootstrap() {
@@ -12,8 +13,10 @@ async function bootstrap() {
   app.enableCors({
     origin: 'http://localhost:3000',
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
   });
  
+  app.useWebSocketAdapter(new IoAdapter(app));
 
   app.useGlobalInterceptors(new LoggingInterceptor());
 

@@ -1,26 +1,18 @@
+// src/notification/notification.module.ts
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { AuthModule } from 'src/auth/auth.module';
+import { PrismaModule } from 'src/prisma/prisma.module';
+
 import { NotificationGateway } from './notification.gateway';
-import { PushNotificationService } from 'src/services/notification/push.service';
-import { SubscriptionService } from 'src/services/notification/subscription.service';
-import { JwtModule } from '@nestjs/jwt'; // Diperlukan oleh NotificationGateway
-import { ConfigModule } from '@nestjs/config'; // Diperlukan oleh NotificationGateway
+import { PushController } from 'src/controllers/notification.controller';
+import { PushNotificationService } from 'src/services/notification/push-notification.service';
+import { WsTestController } from 'src/controllers/ws-test.controller';
 
 @Module({
-  imports: [
-    // Pastikan module-module yang dibutuhkan (seperti untuk JWT/Config) juga diimport
-    ConfigModule,
-    // JwtModule harus dikonfigurasi agar NotificationGateway bisa menggunakan JwtService
-    JwtModule
-  ],
-  providers: [
-    NotificationGateway, // <-- Daftar sebagai provider
-    PushNotificationService, // <-- Daftar sebagai provider
-    SubscriptionService, // <-- Daftar sebagai provider
-  ],
-  exports: [
-    NotificationGateway, // <-- PENTING: Export agar bisa di-inject di module lain
-    PushNotificationService, // <-- PENTING
-    SubscriptionService, // <-- PENTING
-  ],
+  imports: [ConfigModule, PrismaModule, AuthModule],
+  controllers: [PushController, WsTestController],
+  providers: [NotificationGateway, PushNotificationService],
+  exports: [NotificationGateway, PushNotificationService],
 })
 export class NotificationModule {}

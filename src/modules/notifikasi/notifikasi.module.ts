@@ -1,12 +1,10 @@
-import { Module } from '@nestjs/common';
-import { NotifikasiController } from 'src/controllers/notifikasi.controller'; 
-import { NotifikasiService } from 'src/services/notifikasi.service'; 
-import { PrismaModule } from 'src/prisma/prisma.module'; 
+// src/notifikasi/notifikasi.module.ts
+import { Module, forwardRef } from '@nestjs/common';
+import { NotificationModule } from 'src/notification/notification.module';
+import { PushController } from 'src/controllers/notification.controller';
 
 @Module({
-  imports: [PrismaModule],
-  controllers: [NotifikasiController],
-  providers: [NotifikasiService],
-  exports: [NotifikasiService],
+  imports: [forwardRef(() => NotificationModule)], // <<< supaya dapat PushNotificationService
+  controllers: [PushController],                   // <<< controller hanya di sini
 })
 export class NotifikasiModule {}

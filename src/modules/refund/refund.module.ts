@@ -5,13 +5,15 @@ import { RefundService } from 'src/services/refund.service';
 import { RefundController } from 'src/controllers/refund.controller';
 import { BookingModule } from '../booking/booking.module';
 import { AuthModule } from 'src/auth/auth.module';
+import { NotificationModule } from 'src/notification/notification.module';
 
 
 @Module({
     imports: [
         PrismaModule,
         AuthModule,
-        BookingModule
+        BookingModule,
+        NotificationModule
       ],
     controllers: [RefundController],
     providers: [RefundService],

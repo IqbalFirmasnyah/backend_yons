@@ -9,6 +9,8 @@ import { CreateBookingDto } from 'src/dto/create_booking.dto';
 import { UpdateBookingDto } from 'src/dto/update-booking.dto';
 import { Booking, Prisma } from '@prisma/client';
 import { JenisFasilitasEnum } from 'src/dto/create-fasilitas.dto';
+import { PushNotificationService } from './notification/push-notification.service';
+import { NotificationGateway } from 'src/notification/notification.gateway';
 
 export enum BookingStatus {
   WAITING = 'waiting approve admin',
@@ -21,7 +23,11 @@ export enum BookingStatus {
 
 @Injectable()
 export class BookingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private push: PushNotificationService,
+    private gateway: NotificationGateway,
+  ) {}
 
   async createBooking(
     dto: CreateBookingDto,
@@ -129,7 +135,6 @@ export class BookingService {
           // Dropoff is always 1 day, so finalTanggalSelesaiWisata remains finalTanggalMulaiWisata
           break;
         case JenisFasilitasEnum.CUSTOM:
-          // PERBAIKAN: Akses elemen pertama dari array
           if (!fasilitas.customRute || fasilitas.customRute.length === 0) {
             throw new BadRequestException(
               'Fasilitas is of type custom but no associated custom route details found.',
@@ -234,6 +239,7 @@ export class BookingService {
       throw error;
     }
   }
+
   async getMyBookings(userId: number) {
     return this.prisma.booking.findMany({
       where: { userId },
@@ -259,6 +265,7 @@ export class BookingService {
     id: number,
     dto: UpdateBookingDto,
   ): Promise<Booking | null> {
+    // 1) Ambil booking lama (kamu sudah lakukan)
     const existingBooking = await this.prisma.booking.findUnique({
       where: { bookingId: id },
       include: {
@@ -271,12 +278,19 @@ export class BookingService {
             dropoff: { select: { dropoffId: true } },
           },
         },
+        user: { select: { userId: true } }, // + ambil userId untuk notifikasi
       },
     });
     if (!existingBooking) {
       return null;
     }
 
+    // Simpan nilai lama untuk deteksi perubahan
+    const prevStatus = existingBooking.statusBooking;
+    const prevStart = existingBooking.tanggalMulaiWisata?.getTime();
+    const prevEnd = existingBooking.tanggalSelesaiWisata?.getTime();
+
+    // ====== VALIDASI MU ASLI (dipertahankan) ======
     const updatedOptions = [
       dto.paketId,
       dto.paketLuarKotaId,
@@ -324,7 +338,6 @@ export class BookingService {
     let newDuration: number | undefined;
 
     if (dto.paketId !== undefined) {
-      // Logic for updating paketId...
       if (dto.paketId === null) {
         connectDisconnectPaket = { disconnect: true };
         newEstimasiHarga = new Prisma.Decimal(0);
@@ -343,7 +356,6 @@ export class BookingService {
         newDuration = paket.durasiHari;
       }
     } else if (dto.paketLuarKotaId !== undefined) {
-      // Logic for updating paketLuarKotaId...
       if (dto.paketLuarKotaId === null) {
         connectDisconnectPaketLuarKota = { disconnect: true };
         newEstimasiHarga = new Prisma.Decimal(0);
@@ -364,7 +376,6 @@ export class BookingService {
         newDuration = paketLuarKota.estimasiDurasi;
       }
     } else if (dto.fasilitasId !== undefined) {
-      // Logic for updating fasilitasId...
       if (dto.fasilitasId === null) {
         connectDisconnectFasilitas = { disconnect: true };
         newEstimasiHarga = new Prisma.Decimal(0);
@@ -398,7 +409,6 @@ export class BookingService {
             newDuration = 1;
             break;
           case JenisFasilitasEnum.CUSTOM:
-            // PERBAIKAN: Akses elemen pertama dari array
             if (!fasilitas.customRute || fasilitas.customRute.length === 0) {
               throw new BadRequestException(
                 'Fasilitas is of type custom but no associated details found.',
@@ -435,7 +445,6 @@ export class BookingService {
         updatedTanggalMulaiWisata.getDate() + newDuration - 1,
       );
     } else if (dto.tanggalMulaiWisata) {
-      // If start date is updated but no type is changed, use existing duration
       const existingDuration =
         existingBooking.paket?.durasiHari ||
         existingBooking.paketLuarKota?.estimasiDurasi ||
@@ -445,12 +454,12 @@ export class BookingService {
           ? 1
           : 0);
       if (existingDuration) {
-        updatedTanggalSelesaiWisata = new Date(updatedTanggalMulaiWisata);
+        updatedTanggalSelesaiWisata = new Date(updatedTanggalMulaiWisata!);
         updatedTanggalSelesaiWisata.setDate(
-          updatedTanggalMulaiWisata.getDate() + existingDuration - 1,
+          updatedTanggalMulaiWisata!.getDate() + existingDuration - 1,
         );
       } else {
-        updatedTanggalSelesaiWisata = updatedTanggalMulaiWisata; // Fallback for 1-day services
+        updatedTanggalSelesaiWisata = updatedTanggalMulaiWisata; // fallback 1 hari
       }
     }
 
@@ -463,8 +472,6 @@ export class BookingService {
       estimasiHarga: newEstimasiHarga,
       statusBooking: dto.statusBooking,
     };
-
-    // ... (rest of the update logic, which seems okay)
 
     if (dto.supirId !== undefined) {
       if (dto.supirId === null) {
@@ -479,15 +486,11 @@ export class BookingService {
       dataToUpdate.armada = { connect: { armadaId: dto.armadaId } };
     }
 
-    if (connectDisconnectPaket) {
-      dataToUpdate.paket = connectDisconnectPaket;
-    }
-    if (connectDisconnectPaketLuarKota) {
+    if (connectDisconnectPaket) dataToUpdate.paket = connectDisconnectPaket;
+    if (connectDisconnectPaketLuarKota)
       dataToUpdate.paketLuarKota = connectDisconnectPaketLuarKota;
-    }
-    if (connectDisconnectFasilitas) {
+    if (connectDisconnectFasilitas)
       dataToUpdate.fasilitas = connectDisconnectFasilitas;
-    }
 
     if (dto.paketId !== undefined && dto.paketId !== null) {
       dataToUpdate.paketLuarKota = { disconnect: true };
@@ -504,7 +507,8 @@ export class BookingService {
     }
 
     try {
-      return await this.prisma.booking.update({
+      // 2) Update
+      const updated = await this.prisma.booking.update({
         where: { bookingId: id },
         data: dataToUpdate,
         include: {
@@ -516,6 +520,55 @@ export class BookingService {
           armada: true,
         },
       });
+
+      // 3) Deteksi perubahan → kirim notifikasi
+      const nowIso = new Date().toISOString();
+
+      // a) Status berubah?
+      if (dto.statusBooking && dto.statusBooking !== prevStatus) {
+        const payload = {
+          bookingId: updated.bookingId,
+          newStatus: updated.statusBooking,
+          updatedAt: nowIso,
+        };
+        console.log(
+          '[SERVER] sending booking.status.changed',
+          updated.userId,
+          payload,
+        );
+        // WS (toast di tab aktif)
+        this.gateway.bookingStatusChanged(updated.userId, payload);
+        // Web Push (popup device/background)
+        this.push.bookingStatusChanged(updated.userId, payload);
+      }
+
+      // b) Jadwal berubah? (bandingkan timestamp)
+      const currStart = updated.tanggalMulaiWisata?.getTime();
+      const currEnd = updated.tanggalSelesaiWisata?.getTime();
+      const scheduleChanged =
+        (typeof prevStart === 'number' &&
+          typeof currStart === 'number' &&
+          prevStart !== currStart) ||
+        (typeof prevEnd === 'number' &&
+          typeof currEnd === 'number' &&
+          prevEnd !== currEnd);
+
+      if (scheduleChanged) {
+        const payload = {
+          bookingId: updated.bookingId,
+          newDate: updated.tanggalMulaiWisata.toISOString(),
+          updatedAt: nowIso,
+        };
+        console.log(
+          '[SERVER] sending booking.rescheduled',
+          updated.userId,
+          payload,
+        );
+        this.gateway.bookingRescheduled(updated.userId, payload);
+        this.push.bookingRescheduled(updated.userId, payload);
+      }
+
+      return updated;
     } catch (error) {
       console.error(`Prisma error updating booking with ID ${id}:`, error);
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
@@ -565,70 +618,6 @@ export class BookingService {
       },
     });
   }
-
-  // async findOneBooking(id: number): Promise<Booking | null> {
-  //   return this.prisma.booking.findUnique({
-  //     where: { bookingId: id },
-  //     include: {
-  //       user: true,
-  //       paket: true,
-  //       paketLuarKota: true,
-  //       fasilitas: {
-  //         // PERBAIKAN: Gunakan `select` untuk mengambil data yang diperlukan
-  //         select: {
-  //           fasilitasId: true,
-  //           namaFasilitas: true,
-  //           jenisFasilitas: true,
-  //           // Relasi satu-ke-satu, jadi cukup `true`
-  //           dropoff: true,
-  //           // Relasi satu-ke-banyak, ambil elemen pertama
-  //           customRute: { take: 1 },
-  //           // Relasi satu-ke-satu, jadi cukup `true`
-  //           paketLuarKota: true,
-  //         }
-  //       },
-  //       supir: true,
-  //       armada: true,
-  //     },
-  //   });
-  // }
-
-  // async findBookingsByUserId(userId: number) {
-  //   try {
-  //     const bookings = await this.prisma.booking.findMany({
-  //       where: { userId: userId },
-  //       include: {
-  //         paket: { select: { namaPaket: true, lokasi: true, fotoPaket: true } },
-  //         paketLuarKota: { select: { tujuanUtama: true, namaPaket: true } },
-  //         reschedules: {
-  //           // Hanya ambil status dari permintaan reschedule
-  //           select: { status: true },
-  //           // Anda bisa menambahkan filter jika hanya ingin yang 'pending'
-  //           // where: { status: 'pending' }
-  //         },
-  //         fasilitas: {
-  //           select: {
-  //             namaFasilitas: true,
-  //             jenisFasilitas: true,
-  //             dropoff: { select: { namaTujuan: true, alamatTujuan: true } },
-  //             customRute: { select: { tujuanList: true, catatanKhusus: true } },
-  //             paketLuarKota: { select: { namaPaket: true, tujuanUtama: true } },
-  //           },
-  //         },
-  //         supir: { select: { nama: true, nomorHp: true } },
-  //         armada: { select: { jenisMobil: true, platNomor: true } },
-  //         pembayaran: {select :{
-  //            pesananId: true
-  //          }}
-  //       },
-  //       orderBy: { tanggalBooking: 'desc' },
-  //     });
-  //     return bookings;
-  //   } catch (error) {
-  //     console.error('Error finding bookings by user ID:', error);
-  //     throw new Error('Failed to retrieve user bookings');
-  //   }
-  // }
 
   async removeBooking(id: number): Promise<boolean> {
     try {
@@ -684,7 +673,6 @@ export class BookingService {
               tanggalPembayaran: true,
               buktiPembayaran: true,
               statusPembayaran: true,
-              // pesananId: true,        // ❌ Hapus ini - tidak relevan untuk refund
             },
           },
         },
@@ -808,40 +796,34 @@ export class BookingService {
       },
     });
   }
-  private calculateDaysDifference(
-    startDate: Date,
-    endDate: Date,
-  ): number {
+
+  private calculateDaysDifference(startDate: Date, endDate: Date): number {
     const msInDay = 1000 * 60 * 60 * 24;
 
     const cleanStartDate = new Date(startDate.toDateString());
-const cleanEndDate = new Date(endDate.toDateString());
+    const cleanEndDate = new Date(endDate.toDateString());
 
-
-    
     // ⭐ PERBAIKAN: Gunakan metode UTC untuk memastikan perhitungan TIDAK dipengaruhi oleh zona waktu lokal server.
-    
     // Tanggal Booking (Start Date) - dijadikan start hari di UTC
     const startUTC = Date.UTC(
       startDate.getUTCFullYear(),
       startDate.getUTCMonth(),
-      startDate.getUTCDate()
+      startDate.getUTCDate(),
     );
 
     // Tanggal Pengajuan (End Date) - dijadikan start hari di UTC
     const endUTC = Date.UTC(
       endDate.getUTCFullYear(),
       endDate.getUTCMonth(),
-      endDate.getUTCDate()
+      endDate.getUTCDate(),
     );
-    
+
     // Hitung selisih hari penuh
     // Perhitungan: (5 Okt 00:00 UTC) - (3 Okt 00:00 UTC) = 2 hari
     const daysDiff = Math.floor((startUTC - endUTC) / msInDay);
-    
+
     return daysDiff;
   }
-  
 
   async checkRefundEligibility(bookingId: number): Promise<{
     eligible: boolean;
@@ -855,27 +837,27 @@ const cleanEndDate = new Date(endDate.toDateString());
     }
 
     // ⭐ Peraturan: Refund hanya bisa diajukan minimal H-3 (3 hari atau lebih)
-    const MIN_DAYS_FOR_REFUND = 3; 
-
-    // Menggunakan helper yang sudah didefinisikan untuk perhitungan hari penuh
-    // const now = new Date();
-    // const daysDiff = this.calculateDaysDifference(
-    //   booking.tanggalMulaiWisata,
-    //   now,
-    // );
+    const MIN_DAYS_FOR_REFUND = 3;
 
     const now = new Date();
-    const daysDiff = this.calculateDaysDifference(booking.tanggalMulaiWisata, now);
-console.log("Tanggal Mulai Wisata (T):", booking.tanggalMulaiWisata.toISOString());
-console.log("Tanggal Pengajuan (R):", now.toISOString());
-console.log("Selisih Hari (daysDiff):", daysDiff);
-    
+    const daysDiff = this.calculateDaysDifference(
+      booking.tanggalMulaiWisata,
+      now,
+    );
+    console.log(
+      'Tanggal Mulai Wisata (T):',
+      booking.tanggalMulaiWisata.toISOString(),
+    );
+    console.log('Tanggal Pengajuan (R):', now.toISOString());
+    console.log('Selisih Hari (daysDiff):', daysDiff);
+
     // Tambahkan validasi status booking yang diperbolehkan (opsional, tapi baik)
     if (booking.statusBooking !== BookingStatus.CONFIRMED) {
-        return { 
-            eligible: false, 
-            reason: 'Refund hanya bisa diajukan untuk booking yang sudah Dikonfirmasi atau Terverifikasi Pembayaran.' 
-        };
+      return {
+        eligible: false,
+        reason:
+          'Refund hanya bisa diajukan untuk booking yang sudah Dikonfirmasi atau Terverifikasi Pembayaran.',
+      };
     }
 
     // Cek apakah selisih hari kurang dari 3
@@ -885,7 +867,6 @@ console.log("Selisih Hari (daysDiff):", daysDiff);
         `Pengajuan refund harus dilakukan minimal H-${MIN_DAYS_FOR_REFUND} (3 hari) sebelum tanggal wisata. Selisih hari saat ini: ${daysDiff} hari.`,
       );
     }
-
 
     // Jika daysDiff >= 3, maka eligible
     return { eligible: true, booking };
