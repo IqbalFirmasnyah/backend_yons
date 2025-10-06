@@ -42,6 +42,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer'; 
 import * as path from 'path'; // Untuk path
 import { Role } from 'src/auth/enums/role.enum';
+import { Public } from 'src/public/public.decorator';
 
 @ApiTags('Armada') 
 @ApiBearerAuth() 
@@ -62,9 +63,9 @@ export class ArmadaController {
   }
 
   @Get('all')
+  @Public() // <-- BIAR BISA DIAKSES GUEST
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Retrieve all armadas' })
-  @SwaggerApiResponse({ status: HttpStatus.OK, description: 'Successfully retrieved all armadas.' })
   async findAll(): Promise<ApiResponse<Armada[]>> {
     return this.armadaService.findAllArmadas();
   }

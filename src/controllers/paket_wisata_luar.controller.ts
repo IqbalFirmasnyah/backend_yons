@@ -34,6 +34,7 @@ import { JwtAuthGuard } from 'src/auth/strategies/jwt_auth.guard';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import * as path from 'path';
+import { Public } from 'src/public/public.decorator';
 
 @ApiTags('Paket Wisata Luar Kota')
 @ApiBearerAuth()
@@ -41,9 +42,6 @@ import * as path from 'path';
 export class PaketWisataLuarKotaController {
   constructor(private readonly paketWisataLuarKotaService: PaketWisataLuarKotaService) {}
 
-  // =========================================================================
-  // FILE UPLOAD ENDPOINTS (DITETAPKAN)
-  // =========================================================================
 
   @UseGuards(JwtAuthGuard)
   @Post('upload-images/:id')
@@ -127,12 +125,14 @@ export class PaketWisataLuarKotaController {
   }
 
   @Get('all')
+  @Public() // <-- BIAR BISA DIAKSES GUEST
   async findAll() {
     const paketWisata = await this.paketWisataLuarKotaService.findAllPaketWisataLuarKota();
     return { statusCode: HttpStatus.OK, message: 'Paket wisata luar kota retrieved successfully', data: paketWisata };
   }
 
   @Get(':id')
+  @Public() // <-- opsional, kalau halaman detail ingin publik
   async findOne(@Param('id', ParseIntPipe) id: number) {
     const paket = await this.paketWisataLuarKotaService.findOnePaketWisataLuarKota(id);
     return { statusCode: HttpStatus.OK, message: 'Paket wisata luar kota retrieved successfully', data: paket };

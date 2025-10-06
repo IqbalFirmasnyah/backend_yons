@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { PrismaModule } from '../prisma/prisma.module'; // Pastikan Anda mengimpor PrismaModule
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { ConfigModule, ConfigService } from '@nestjs/config'; // Impor ConfigModule dan ConfigService
+import { MailModule } from 'src/modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config'; // Impor ConfigMod
       }),
       inject: [ConfigService], // Injeksi ConfigService
     }),
+    MailModule,
     ConfigModule, // Pastikan ConfigModule terdaftar di imports
   ],
   controllers: [AuthController],

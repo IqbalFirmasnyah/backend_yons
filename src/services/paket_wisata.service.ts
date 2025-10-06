@@ -11,10 +11,6 @@ import * as fs from 'fs'; // Import File System module
 export class PaketWisataService {
   constructor(private prisma: PrismaService) {}
 
-  // =========================================================================
-  // File Upload Logic (BARU)
-  // =========================================================================
-
   public async uploadImages(id: number, files: Express.Multer.File[]) {
     // imagesUploaded berisi array nama file yang sudah disimpan oleh Multer
     const imagesUploaded = files.map((file) => file.filename);
@@ -167,9 +163,6 @@ export class PaketWisataService {
     }
   }
 
-  // ... (findAll, findOne, update, remove, findByKategori, updateStatus)
-
-  // ... (Lanjutan fungsi CRUD Anda yang tidak berubah)
   async findAll(query: PaketWisataQueryDto) {
       const { kategori, status, search, page = 1, limit = 10 } = query;
       const skip = (page - 1) * limit;

@@ -1,5 +1,5 @@
 // src/auth/auth.service.ts
-import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -9,12 +9,16 @@ import { UpdateUserDto } from '../dto/update_user.dto'; // Sesuaikan path DTO
 import { ChangePasswordDto } from 'src/dto/change_password.dto'; 
 import { Role } from './enums/role.enum'; 
 import { JwtPayload } from './types/jwt-payload'; 
+import { MailService } from 'src/services/mail.service';
+import { ResetPasswordDto } from 'src/dto/reset_password.dto';
+import { ForgotPasswordDto } from 'src/dto/forgot_password.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private mailService: MailService
   ) {}
 
   async login(loginDto: LoginDto): Promise<{ accessToken: string }> {
@@ -64,7 +68,7 @@ export class AuthService {
     }
 
     // Jika tidak ada yang cocok atau password salah
-    throw new UnauthorizedException('Kredensial login tidak valid.');
+    throw new UnauthorizedException('Email atau Password Salah !!!');
   }
 
   async register(createUserDto: CreateUserDto) {
@@ -92,6 +96,11 @@ export class AuthService {
           createdAt: true,
         },
       });
+
+      
+      await this.mailService.sendWelcomeEmail(newUser.email, newUser.namaLengkap)
+        .catch(() => {/* sudah dilog di MailService */});
+
       return newUser;
     } catch (error) {
       console.error('Error registering user:', error);
@@ -202,17 +211,103 @@ export class AuthService {
     };
   }
 
-  // Metode validateUser() di JwtStrategy tidak perlu memanggil AuthService.validateUser
-  // melainkan langsung mencari user/admin di database seperti yang sudah kita revisi.
-  // Jadi, Anda bisa menghapus atau tidak menggunakan metode validateUser(payload) ini di AuthService.
-  // Jika Anda tetap ingin ada, mungkin untuk tujuan internal AuthService saja.
-  // Contoh:
-  // async validateUserByPayload(payload: JwtPayload): Promise<any> {
-  //   if (payload.role === Role.User) {
-  //     return this.prisma.user.findUnique({ where: { userId: payload.sub } });
-  //   } else if (payload.role === Role.Admin || payload.role === Role.SuperAdmin) {
-  //     return this.prisma.admin.findUnique({ where: { adminId: payload.sub } });
-  //   }
-  //   return null;
-  // }
+  // ========= REQUEST RESET =========
+async requestPasswordReset(dto: ForgotPasswordDto) {
+  const { email } = dto;
+
+  const user = await this.prisma.user.findUnique({
+    where: { email },
+    select: { userId: true, email: true, namaLengkap: true }
+  });
+
+  // Agar tidak bocorkan eksistensi email
+  if (!user) {
+    return { message: 'Jika email terdaftar, kode reset telah dikirim.' };
+  }
+
+  // Rate-limit sederhana
+  const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000);
+  const recentCount = await this.prisma.passwordReset.count({
+    where: { userId: user.userId, createdAt: { gte: fifteenMinAgo } },
+  });
+  if (recentCount >= 3) {
+    throw new ForbiddenException('Terlalu banyak permintaan. Coba lagi nanti.');
+  }
+
+  // Generate OTP 6 digit (PLAIN)
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Hash sebelum simpan
+  const otpHash = await bcrypt.hash(otp, 10);
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  await this.prisma.passwordReset.create({
+    data: {
+      userId: user.userId,
+      codeHash: otpHash,     // <-- simpan HASH ke DB (pakai kolom codeHash)
+      expiresAt,
+    },
+  });
+
+  // Kirim ke email: PLAIN OTP
+  await this.mailService
+    .sendPasswordResetEmail(user.email, user.namaLengkap, otp) // <-- kirim OTP, bukan hash
+    .catch(() => { /* sudah dilog */ });
+
+  return { message: 'Kode reset telah dikirim ke email Anda.' };
+}
+
+
+  // ========= NEW: Reset Password
+ // ========= RESET PASSWORD =========
+async resetPassword(dto: ResetPasswordDto) {
+  const { email, code, newPassword } = dto;  // <-- gunakan "code" (plain), bukan codeHash
+
+  const user = await this.prisma.user.findUnique({
+    where: { email },
+    select: { userId: true, password: true },
+  });
+  if (!user) {
+    throw new NotFoundException('Email tidak ditemukan.');
+  }
+
+  const reset = await this.prisma.passwordReset.findFirst({
+    where: {
+      userId: user.userId,
+      usedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  if (!reset) {
+    throw new UnauthorizedException('Kode reset tidak valid atau telah kadaluarsa.');
+  }
+
+  // Cocokkan OTP plain vs HASH di DB
+  const match = await bcrypt.compare(code, reset.codeHash); // <-- perhatikan codeHash
+  if (!match) {
+    throw new UnauthorizedException('Kode verifikasi tidak cocok.');
+  }
+
+  const newHashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await this.prisma.$transaction([
+    this.prisma.user.update({
+      where: { userId: user.userId },
+      data: { password: newHashedPassword },
+    }),
+    this.prisma.passwordReset.update({
+      where: { id: reset.id },
+      data: { usedAt: new Date() },
+    }),
+    this.prisma.passwordReset.updateMany({
+      where: { userId: user.userId, usedAt: null, id: { not: reset.id } },
+      data: { usedAt: new Date() },
+    }),
+  ]);
+
+  return { message: 'Password berhasil direset. Silakan login.' };
+}
+
 }

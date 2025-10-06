@@ -23,6 +23,8 @@ import {
   import { Role } from './enums/role.enum';
   import { LoginDto } from 'src/dto/login.dto';
   import { ChangePasswordDto } from 'src/dto/change_password.dto';
+import { ForgotPasswordDto } from 'src/dto/forgot_password.dto';
+import { ResetPasswordDto } from 'src/dto/reset_password.dto';
   
   @Controller('auth')
   // Secara default, semua rute di controller ini akan dilindungi kecuali ditandai @Public()
@@ -83,6 +85,21 @@ import {
           return this.authService.changePassword(user.id, changePasswordDto);
       }
       throw new ForbiddenException('Perubahan kata sandi tidak diizinkan untuk peran ini.');
+    }
+
+    @Public()
+    @Post('forgot-password')
+    @HttpCode(HttpStatus.OK)
+    async forgotPassword(@Body(ValidationPipe) dto: ForgotPasswordDto) {
+      return this.authService.requestPasswordReset(dto);
+    }
+  
+    // ========= NEW: Reset password =========
+    @Public()
+    @Post('reset-password')
+    @HttpCode(HttpStatus.OK)
+    async resetPassword(@Body(ValidationPipe) dto: ResetPasswordDto) {
+      return this.authService.resetPassword(dto);
     }
   
     @Post('refresh-token')

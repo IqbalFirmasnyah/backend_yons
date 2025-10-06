@@ -26,6 +26,7 @@ import { RescheduleModule } from './modules/reschedule/reschedule.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { NotificationModule } from './notification/notification.module';
+import { ReportModule } from './modules/report/report.module';
 
 
 
@@ -49,6 +50,7 @@ import { NotificationModule } from './notification/notification.module';
     SupirModule,
     AssignmentSupirModule,
     // UpdateStatusBookingModule,
+    ReportModule,
     BookingModule,
     RefundModule,
     UserModule,
@@ -60,7 +62,8 @@ import { NotificationModule } from './notification/notification.module';
     CustomRuteFasilitasModule,
     DropoffModule,
     RescheduleModule,
-    NotificationModule
+    NotificationModule,
+    
   ],
   providers: [
     {

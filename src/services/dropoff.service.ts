@@ -22,7 +22,7 @@ export class DropoffService {
 
   async createDropoff(dto: CreateDropoffDto): Promise<Dropoff> {
     try {
-      // 1. Geocoding alamat tujuan yang diinput pengguna
+  
       const geocodeResult = await this.nominatimService.geocodeAddress(
         dto.alamatTujuan,
       );
@@ -32,18 +32,13 @@ export class DropoffService {
         );
       }
 
-      // 2. Tentukan koordinat awal. Anggap ini adalah lokasi pangkalan Anda.
-      // Ini bisa diatur sebagai variabel lingkungan atau diambil dari database.
-      const startCoords = { lat: -6.2088, lon: 106.8456 }; // Contoh: Monas, Jakarta
-
-      // 3. Hitung jarak dan durasi menggunakan OSRM
+      const startCoords = { lat: -6.2088, lon: 106.8456 }; 
       const { distanceKm, durationSeconds } =
         await this.osrmService.getRouteInfo(startCoords, {
           lat: geocodeResult.latitude,
           lon: geocodeResult.longitude,
         });
 
-      // 4. Tentukan harga per kilometer dan hitung harga estimasi
       const tarifPerKm = 5000;
       const hargaEstimasi = new Prisma.Decimal(distanceKm * tarifPerKm);
 

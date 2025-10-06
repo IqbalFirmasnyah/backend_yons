@@ -52,4 +52,9 @@ export class CreateBookingDto {
   @IsInt()
   @Type(() => Number)
   armadaId: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  estimasiHargaTotal?: number;
 }

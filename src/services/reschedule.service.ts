@@ -43,9 +43,6 @@ import {
       return Math.floor((startUTC - endUTC) / msInDay);
     }
   
-    // =======================================================
-    // ⭐ VALIDASI: H-4 & H+2 (H+1 dilarang)
-    // =======================================================
     public validateRescheduleEligibility(
       booking: Booking,
       tanggalBaru: Date,

@@ -33,6 +33,7 @@ export class CustomRuteFasilitasController {
   }
 
   @Get()
+  
   async findAll() {
     return this.customRuteFasilitasService.findAllCustomRuteFasilitas();
   }

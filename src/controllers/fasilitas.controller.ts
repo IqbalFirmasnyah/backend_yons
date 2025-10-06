@@ -17,13 +17,12 @@ import { CreateFasilitasDto } from 'src/dto/create-fasilitas.dto';
 import { UpdateFasilitasDto } from 'src/dto/update-fasilitas.dto';
 import { JwtAuthGuard } from 'src/auth/strategies/jwt_auth.guard';
 import { ApiTags, ApiOperation, ApiResponse as SwaggerApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { Public } from 'src/public/public.decorator';
 
 @ApiTags('Fasilitas')
 @Controller('fasilitas')
 export class FasilitasController {
   constructor(private readonly fasilitasService: FasilitasService) {}
-
-  // 🔒 hanya admin/user login yang bisa buat fasilitas
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @Post('add')
@@ -41,7 +40,7 @@ export class FasilitasController {
     }
   }
 
-  
+  @Public()
   @Get()
   @ApiOperation({ summary: 'Retrieve all facilities (Public)' })
   @SwaggerApiResponse({ status: HttpStatus.OK, description: 'Successfully retrieved all facilities.' })

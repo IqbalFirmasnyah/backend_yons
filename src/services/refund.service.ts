@@ -31,14 +31,9 @@ export class RefundService {
       include: { pembayaran: true },
     });
 
-    if (!booking) {
-      throw new NotFoundException('Booking tidak ditemukan.');
-    }
-
+    if (!booking) throw new NotFoundException('Booking tidak ditemukan.');
     if (booking.userId !== userId) {
-      throw new BadRequestException(
-        'Booking does not belong to the current user.',
-      );
+      throw new BadRequestException('Booking does not belong to the current user.');
     }
 
     const existingRefund = await this.prisma.refund.findFirst({
@@ -54,37 +49,50 @@ export class RefundService {
         },
       },
     });
-
     if (existingRefund) {
       throw new BadRequestException('Refund sudah diajukan untuk booking ini.');
     }
 
+    // === HITUNG 10% POTONGAN ===
+    // Ambil total dasar: pembayaran.jumlahBayar (jika ada) else estimasiHarga
+    // Catatan: jumlahBayar & estimasiHarga bertipe Decimal di Prisma
+    const baseDecimal: Prisma.Decimal = booking.pembayaran?.jumlahBayar
+      ? new Prisma.Decimal(booking.pembayaran.jumlahBayar as any)
+      : new Prisma.Decimal(booking.estimasiHarga as any);
+
+    const tenPercent = new Prisma.Decimal(0.10);
+    const potonganAdmin = baseDecimal.mul(tenPercent); // 10% dari total
+    const jumlahRefundFinal = baseDecimal.sub(potonganAdmin);
+
+    // Simpan refund; abaikan dto.jumlahRefund, gunakan perhitungan server
     const refund = await this.prisma.refund.create({
       data: {
         userId,
         bookingId,
         pembayaranId: dto.pembayaranId,
         alasanRefund: dto.alasanRefund,
-        jumlahRefund: dto.jumlahRefund,
+        // nilai bruto yang dimohonkan bisa sama dengan total dasar
+        // tapi yang penting "jumlahRefundFinal" adalah nilai setelah potongan.
+        jumlahRefund: baseDecimal,
         metodeRefund: dto.metodeRefund,
         rekeningTujuan: dto.rekeningTujuan,
         statusRefund: RefundStatus.PENDING,
         kodeRefund: `REF-${Date.now()}`,
-        jumlahPotonganAdmin: new Prisma.Decimal(20),
-        jumlahRefundFinal: dto.jumlahRefund,
+        // simpan potongan dalam nilai UANG (bukan persen)
+        jumlahPotonganAdmin: potonganAdmin,
+        jumlahRefundFinal: jumlahRefundFinal,
         tanggalPengajuan: new Date(),
       },
     });
 
-    // 🔔 Notifikasi: refund diajukan (PENDING)
+    
     const payload = {
       bookingId,
       refundId: refund.refundId,
-      amount: Number(refund.jumlahRefundFinal ?? refund.jumlahRefund),
+      amount: Number(refund.jumlahRefundFinal ?? jumlahRefundFinal),
       status: refund.statusRefund,
       updatedAt: new Date().toISOString(),
     };
-    console.log('[SERVER] sending booking.refunded (create)', userId, payload);
     this.gateway.bookingRefunded(userId, {
       bookingId: payload.bookingId,
       refundId: payload.refundId,
@@ -110,7 +118,7 @@ export class RefundService {
     });
   }
 
-  // ---------------- CHECK ELIGIBILITY (user-ownership + no existing active refund) ----------------
+  // ---------------- CHECK ELIGIBILITY ----------------
   async checkBookingEligibility(userId: number, bookingId: number) {
     const booking = await this.prisma.booking.findUnique({
       where: { bookingId },
@@ -118,9 +126,7 @@ export class RefundService {
     });
     if (!booking) throw new NotFoundException('Booking tidak ditemukan');
     if (booking.userId !== userId)
-      throw new ForbiddenException(
-        'Booking does not belong to the current user',
-      );
+      throw new ForbiddenException('Booking does not belong to the current user');
 
     const existingRefund = await this.prisma.refund.findFirst({
       where: {
@@ -135,11 +141,8 @@ export class RefundService {
         },
       },
     });
-
     if (existingRefund)
-      throw new BadRequestException(
-        'Refund sudah pernah diajukan untuk booking ini',
-      );
+      throw new BadRequestException('Refund sudah pernah diajukan untuk booking ini');
 
     return {
       eligible: true,
@@ -177,11 +180,7 @@ export class RefundService {
         processedByAdmin: true,
       },
     });
-
-    if (!refund) {
-      throw new NotFoundException(`Refund with ID ${id} not found.`);
-    }
-
+    if (!refund) throw new NotFoundException(`Refund with ID ${id} not found.`);
     return refund;
   }
 
@@ -288,19 +287,13 @@ export class RefundService {
 
     // 🔔 Notifikasi: status refund berubah
     const payload = {
-      bookingId: updatedRefund.bookingId!, // bookingId dijamin ada kalau diajukan dari booking
+      bookingId: updatedRefund.bookingId!,
       refundId: updatedRefund.refundId,
-      amount: Number(
-        updatedRefund.jumlahRefundFinal ?? updatedRefund.jumlahRefund,
-      ),
+      amount: Number(updatedRefund.jumlahRefundFinal ?? updatedRefund.jumlahRefund),
       status: updatedRefund.statusRefund,
       updatedAt: new Date().toISOString(),
     };
-    console.log(
-      '[SERVER] sending booking.refunded (update)',
-      updatedRefund.userId,
-      payload,
-    );
+    console.log('[SERVER] sending booking.refunded (update)', updatedRefund.userId, payload);
     this.gateway.bookingRefunded(updatedRefund.userId, {
       bookingId: payload.bookingId,
       refundId: payload.refundId,
@@ -318,19 +311,14 @@ export class RefundService {
     const refund = await this.findOneRefund(id);
 
     if (user.role === 'user') {
-      if (refund.userId !== user.id)
-        throw new ForbiddenException('Access denied');
+      if (refund.userId !== user.id) throw new ForbiddenException('Access denied');
       if (refund.statusRefund !== RefundStatus.PENDING)
-        throw new BadRequestException(
-          'Can only delete pending refund requests',
-        );
+        throw new BadRequestException('Can only delete pending refund requests');
     }
 
-    const deleted = await this.prisma.refund.delete({
-      where: { refundId: id },
-    });
+    const deleted = await this.prisma.refund.delete({ where: { refundId: id } });
 
-    // 🔔 Notifikasi (opsional): beritahu penghapusan refund
+    // 🔔 Notifikasi (opsional)
     const payload = {
       bookingId: refund.bookingId!,
       refundId: refund.refundId,
@@ -338,11 +326,7 @@ export class RefundService {
       amount: Number(refund.jumlahRefundFinal ?? refund.jumlahRefund),
       updatedAt: new Date().toISOString(),
     };
-    console.log(
-      '[SERVER] sending booking.refunded (deleted)',
-      refund.userId,
-      payload,
-    );
+    console.log('[SERVER] sending booking.refunded (deleted)', refund.userId, payload);
     this.gateway.bookingRefunded(refund.userId, {
       bookingId: payload.bookingId,
       refundId: payload.refundId,

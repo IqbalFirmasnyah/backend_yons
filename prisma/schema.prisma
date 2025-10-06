@@ -62,6 +62,7 @@ model User {
   pembayaran       Pembayaran[]
   booking          Booking[]
   refund           Refund[]
+  passwordResets  PasswordReset[] 
   reschedules      Reschedule[]
   updateStatusUser UpdateStatusBooking[] @relation("UpdateByUser")
   pushSubscriptions PushSubscription[]
@@ -463,3 +464,18 @@ model PushSubscription {
 
   @@map("push_subscription")
 }
+
+
+model PasswordReset {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  codeHash   String     @map("code")
+  expiresAt  DateTime
+  usedAt     DateTime? 
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, expiresAt])
+  @@index([createdAt])
+}
+

@@ -43,7 +43,7 @@ export class CustomRuteFasilitasService {
 
       let totalJarakKm = 0;
       let estimasiDurasiMenit = 0;
-      let previousCoords = { lat: -6.2088, lon: 106.8456 }; // Titik awal pangkalan
+      let previousCoords = { lat: -6.2088, lon: 106.8456 }; 
       const geocodedTujuanList: GeocodedTujuan[] = [];
 
       // 2. Lakukan perhitungan rute

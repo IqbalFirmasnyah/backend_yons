@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+  <body style="font-family: Arial, sans-serif;">
+    <h2>Halo, {{nama}} 👋</h2>
+    <p>Terima kasih sudah mendaftar. Akun kamu berhasil dibuat.</p>
+
+    {{#if appUrl}}
+      <p>Kamu bisa langsung masuk ke aplikasi:
+        <a href="{{appUrl}}" target="_blank" rel="noreferrer">{{appUrl}}</a>
+      </p>
+    {{/if}}
+
+    <p>Jika kamu tidak merasa mendaftar, abaikan email ini.</p>
+    <hr />
+    <p>Salam hangat,<br/>Tim Support</p>
+  </body>
+</html>

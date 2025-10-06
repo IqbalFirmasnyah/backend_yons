@@ -40,9 +40,7 @@ export class NotificationGateway {
       const room = `user:${userId}`;
       client.join(room);
       client.emit('registered', { room });
-      console.log('[WS] register OK =>', room);
     } catch (e: any) {
-      console.error('[WS] register failed:', e);
       client.emit('register.error', { message: e?.message || 'invalid token' });
     }
   }

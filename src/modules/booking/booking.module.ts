@@ -18,6 +18,7 @@ import { CustomRuteFasilitasModule } from '../custom-rute-fasilitas/custom-rute-
     ArmadaModule, 
     SupirModule,
     CustomRuteFasilitasModule,
+    
   ],
   controllers: [BookingController],
   providers: [BookingService],
