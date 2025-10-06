@@ -42,7 +42,7 @@ export class MailService {
         to,
         from: this.fromDefault,
         subject: 'Selamat datang! Akun kamu berhasil dibuat ✅',
-        template: 'welcome', // butuh template: src/mail/templates/welcome.hbs
+        template: 'welcome', 
         context: {
           nama: name,
           appName: this.appName,
@@ -111,7 +111,7 @@ Terima kasih.`,
         to,
         from: this.fromDefault,
         subject: 'Kode Reset Password',
-        template: 'reset-password', // butuh template: src/mail/templates/reset-password.hbs
+        template: 'reset-password',
         context: {
           nama: name,
           codeHash,

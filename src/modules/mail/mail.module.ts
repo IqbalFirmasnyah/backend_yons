@@ -37,7 +37,7 @@ function resolveTemplatesDir() {
         defaults: {
           from: `"${config.get<string>('MAIL_FROM_NAME') || 'No-Reply'}" <${config.get<string>('MAIL_FROM_ADDRESS') || 'no-reply@example.com'}>`,
         },
-        template: {
+        template: { 
           dir: resolveTemplatesDir(),
           adapter: new HandlebarsAdapter(),
           options: { strict: true },
