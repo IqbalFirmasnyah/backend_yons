@@ -1,5 +1,3 @@
-import { Decimal } from "generated/prisma/runtime/library";
-
 export class PesananResponseDto {
     pesananId: number;
     userId: number;

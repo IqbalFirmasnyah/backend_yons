@@ -7,7 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
 @WebSocketGateway({
-  cors: { origin: ['http://localhost:3000'], credentials: true },
+  cors: { origin: ['https://yonstrans.my.id'], credentials: true },
   transports: ['websocket', 'polling'],
   path: '/socket.io',
 })
