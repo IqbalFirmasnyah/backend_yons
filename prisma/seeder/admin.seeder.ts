@@ -1,18 +1,21 @@
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+// Gunakan require agar kompatibel dengan CommonJS
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcrypt');
 
+// Inisialisasi PrismaClient
 const prisma = new PrismaClient();
 
-export async function seedAdmin() {
+async function seedAdmin() {
   console.log('⏳ Seeding admin user...');
 
   const adminEmail = process.env.ADMIN_EMAIL || 'yons@admin.com';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'Yonstrans123';
+  const adminPassword = process.env.ADMIN_PASSWORD || 'Yonstrans123'; // Ganti dengan password kuat di produksi!
   const adminUsername = process.env.ADMIN_USERNAME || 'YonstransAdmin';
   const adminNamaLengkap = process.env.ADMIN_NAMA_LENGKAP || 'Administrator Sistem';
   const adminRole = process.env.ADMIN_ROLE === 'super_admin' ? 'super_admin' : 'admin';
 
   try {
+    // Cek apakah admin sudah ada
     const existingAdmin = await prisma.admin.findFirst({
       where: {
         OR: [{ email: adminEmail }, { username: adminUsername }],
@@ -39,7 +42,7 @@ export async function seedAdmin() {
       },
     });
 
-    console.log(`✨ Admin user "${newAdmin.username}" (${newAdmin.email}) created successfully with role: ${newAdmin.role}`);
+    console.log(`✨ Admin "${newAdmin.username}" (${newAdmin.email}) created successfully with role: ${newAdmin.role}`);
   } catch (error) {
     console.error('❌ Error seeding admin user:', error);
   } finally {
@@ -47,10 +50,14 @@ export async function seedAdmin() {
   }
 }
 
-// Jalankan otomatis hanya jika file ini dijalankan langsung
-if (import.meta.url === `file://${process.argv[1]}`) {
-  seedAdmin().catch((e) => {
-    console.error(e);
-    process.exit(1);
-  });
+// Jalankan seeder jika file dieksekusi langsung
+if (require.main === module) {
+  seedAdmin()
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    });
 }
+
+// Export agar bisa dipanggil dari file lain jika perlu
+module.exports = { seedAdmin };
