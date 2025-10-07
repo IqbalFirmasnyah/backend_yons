@@ -24,4 +24,4 @@ COPY .env .env
 EXPOSE 3000
 
 # 🟢 Run migrations + start app at runtime (not build time)
-CMD npx prisma migrate deploy && node dist/main.js
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
