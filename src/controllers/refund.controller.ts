@@ -125,24 +125,35 @@ export class RefundController {
     }
   }
 
-  // ----------------- GET ALL REFUNDS (ADMIN) -----------------
   @Get()
   @Roles(Role.Admin)
   @ApiOperation({ summary: 'Retrieve all refund requests (Admin only)' })
   async findAll() {
     try {
       const refunds = await this.refundService.findAllRefunds();
+
+      // Pastikan format data rapi dan menyertakan nama user
+      const formatted = refunds.map((r) => ({
+        refundId: r.refundId,
+        bookingId: r.bookingId,
+        userId: r.userId,
+        userName: r.user?.namaLengkap ?? '-', 
+        jumlahRefund: r.jumlahRefund,
+        statusRefund: r.statusRefund,
+        createdAt: r.createdAt,
+      }));
+
       return {
         success: true,
-        data: refunds,
-        count: refunds.length,
+        message: 'Refund list retrieved successfully',
+        count: formatted.length,
+        data: formatted,
       };
     } catch (error) {
-      console.error('Error fetching all refunds:', error);
-      throw new InternalServerErrorException('Failed to retrieve refunds');
+      console.error('❌ Error fetching all refunds:', error);
+      throw new InternalServerErrorException('Failed to retrieve refund list');
     }
   }
-
   // ----------------- GET SINGLE REFUND -----------------
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a single refund request by ID' })

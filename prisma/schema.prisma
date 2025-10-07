@@ -342,7 +342,7 @@ model Booking {
   userId               Int                   @map("user_id")
   paketId              Int?                  @map("paket_id")
   paketLuarKotaId      Int?                  @map("paket_luar_kota_id")
-  fasilitasId          Int?                  @map("fasilitas_id") // Can link to a custom Fasilitas (e.g., custom route, dropoff)
+  fasilitasId          Int?                  @map("fasilitas_id") 
   supirId              Int                   @map("supir_id")
   armadaId             Int                   @map("armada_id")
   kodeBooking          String                @unique @map("kode_booking") @db.VarChar(20)
@@ -362,8 +362,8 @@ model Booking {
   paket                PaketWisata?          @relation(fields: [paketId], references: [paketId], onDelete: SetNull)
   paketLuarKota        PaketWisataLuarKota?  @relation(fields: [paketLuarKotaId], references: [paketLuarKotaId], onDelete: SetNull)
   fasilitas            Fasilitas?            @relation(fields: [fasilitasId], references: [fasilitasId], onDelete: SetNull)
-  supir                Supir?                @relation(fields: [supirId], references: [supirId], onDelete: SetNull)
-  armada               Armada?               @relation(fields: [armadaId], references: [armadaId], onDelete: SetNull)
+  supir                Supir?                @relation(fields: [supirId], references: [supirId], onDelete: Cascade)
+  armada               Armada?               @relation(fields: [armadaId], references: [armadaId], onDelete: Cascade)
   updateStatus         UpdateStatusBooking[]
   refund               Refund[]
   notifikasi           Notifikasi[]
@@ -416,7 +416,7 @@ model Refund {
   createdAt            DateTime         @default(now()) @map("created_at")
   updatedAt            DateTime         @updatedAt @map("updated_at")
   // Relations
-  user                 User?            @relation(fields: [userId], references: [userId], onDelete: Cascade)
+  user                 User            @relation(fields: [userId], references: [userId], onDelete: Cascade)
   pesanan              Pesanan?         @relation(fields: [pesananId], references: [pesananId], onDelete: SetNull)
   pesananLuarKota      PesananLuarKota? @relation(fields: [pesananLuarKotaId], references: [pesananLuarKotaId], onDelete: SetNull)
   booking              Booking?         @relation(fields: [bookingId], references: [bookingId], onDelete: SetNull)

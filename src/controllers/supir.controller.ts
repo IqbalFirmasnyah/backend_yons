@@ -23,7 +23,7 @@ import {
   ApiResponse as SwaggerApiResponse,
   ApiBearerAuth,
   ApiParam,
-} from '@nestjs/swagger'; 
+} from '@nestjs/swagger';
 import { Public } from 'src/public/public.decorator';
 
 @ApiTags('Supir') // Add Swagger tag for documentation
@@ -192,10 +192,6 @@ export class SupirController {
     description: 'Unauthorized',
   })
   async delete(@Param('id', ParseIntPipe) id: number) {
-    // Use ParseIntPipe
-    await this.supirService.delete(id);
-    return {
-      message: 'Supir berhasil dihapus',
-    };
+    return this.supirService.delete(id);
   }
 }

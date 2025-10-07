@@ -16,6 +16,18 @@ interface AuthUser {
   role: 'user' | 'admin';
 }
 
+type RefundWithUser = Prisma.RefundGetPayload<{
+  include: {
+    user: { select: { userId: true; namaLengkap: true } };
+    pembayaran: true;
+    pesanan: true;
+    pesananLuarKota: true;
+    booking: true;
+    approvedByAdmin: true;
+    processedByAdmin: true;
+  };
+}>;
+
 @Injectable()
 export class RefundService {
   constructor(
@@ -152,10 +164,12 @@ export class RefundService {
   }
 
   // ---------------- GET ALL REFUNDS (ADMIN) ----------------
-  async findAllRefunds(): Promise<Refund[]> {
+
+  
+  async findAllRefunds(): Promise<RefundWithUser[]> {
     return this.prisma.refund.findMany({
       include: {
-        user: true,
+        user: { select: { userId: true, namaLengkap: true } },
         pembayaran: true,
         pesanan: true,
         pesananLuarKota: true,
@@ -163,6 +177,7 @@ export class RefundService {
         approvedByAdmin: true,
         processedByAdmin: true,
       },
+      orderBy: { refundId: 'desc' },
     });
   }
 

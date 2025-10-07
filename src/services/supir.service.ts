@@ -2,20 +2,39 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateSupirDto } from '../dto/create_supir.dto';
 import { UpdateSupirDto } from '../dto/update_supir.dto';
+import { Prisma } from '@prisma/client';
+
 
 @Injectable()
 export class SupirService {
-  delete(id: number) {
-      throw new Error('Method not implemented.');
-  }
   constructor(private prisma: PrismaService) {}
 
+  
+  
   async create(data: CreateSupirDto) {
     return this.prisma.supir.create({ data });
   }
-
+  
   async findAll() {
     return this.prisma.supir.findMany();
+  }
+  async delete(supirId: number) {
+    try {
+      if (!supirId) {
+        throw new Error('supir_id is required');
+      }
+      await this.prisma.supir.delete({ where: { supirId } });
+
+      return { message: 'Supir deleted' };
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError) {
+        // Not found
+        if (e.code === 'P2025') {
+          throw new NotFoundException('Supir not found');
+        }
+      }
+      throw e;
+    }
   }
 
   async findOne(id: number) {
