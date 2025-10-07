@@ -70,7 +70,7 @@ export class CustomRuteFasilitasService {
         previousCoords = currentCoords;
       }
 
-      const tarifPerKm = 5000;
+      const tarifPerKm = 50;
       const hargaEstimasi = new Prisma.Decimal(totalJarakKm * tarifPerKm);
 
       // 3. Simpan data ke database

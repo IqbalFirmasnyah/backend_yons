@@ -12,6 +12,8 @@ async function bootstrap() {
 
   app.enableCors({
     origin: 'https://yonstrans.my.id',
+    // 'http://localhost:3000',
+    // 'https://yonstrans.my.id'
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
   });

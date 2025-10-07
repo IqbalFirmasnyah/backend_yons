@@ -39,7 +39,7 @@ export class DropoffService {
           lon: geocodeResult.longitude,
         });
 
-      const tarifPerKm = 5000;
+      const tarifPerKm = 50;
       const hargaEstimasi = new Prisma.Decimal(distanceKm * tarifPerKm);
 
       // START TRANSACTION untuk memastikan kedua operasi berhasil atau tidak sama sekali
