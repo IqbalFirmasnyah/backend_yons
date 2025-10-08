@@ -195,3 +195,7 @@ export class SupirController {
     return this.supirService.delete(id);
   }
 }
+
+
+
+
