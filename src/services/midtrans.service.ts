@@ -32,13 +32,13 @@ export class MidtransService {
   private coreApi: any;
 
   constructor(private configService: ConfigService) {
-    const isProduction = process.env.MIDTRANS_IS_PRODUCTION
-    const serverKey = process.env.MIDTRANS_SERVER_KEY
-    const clientKey = process.env.MIDTRANS_CLIENT_KEY
+    // const isProduction = process.env.MIDTRANS_IS_PRODUCTION
+    // const serverKey = process.env.MIDTRANS_SERVER_KEY
+    // const clientKey = process.env.MIDTRANS_CLIENT_KEY
 
-    // const isProduction = false; 
-    // const serverKey = 'SB-Mid-server-TM8KWtr3sos_qEuNTKNhIYfo';
-    // const clientKey = 'SB-Mid-client-pQvIg9dYoy5mliYR';
+    const isProduction = false; 
+    const serverKey = 'SB-Mid-server-TM8KWtr3sos_qEuNTKNhIYfo';
+    const clientKey = 'SB-Mid-client-pQvIg9dYoy5mliYR';
 
     if (!serverKey || !clientKey) {
         this.logger.error('Midtrans keys are not configured. Please check your .env file or ConfigModule setup.');
