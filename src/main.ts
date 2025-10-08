@@ -11,9 +11,9 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   app.enableCors({
-    origin: 'https://yonstrans.my.id',
-    // 'http://localhost:3000',
-    // 'https://yonstrans.my.id'
+    origin: ['https://yonstrans.my.id',
+    'http://localhost:3000'],
+    
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
   });

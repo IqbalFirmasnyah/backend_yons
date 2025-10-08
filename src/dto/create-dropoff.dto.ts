@@ -11,6 +11,10 @@ export class CreateDropoffDto {
   alamatTujuan: string;
 
   @IsNotEmpty()
+  @IsString()
+  alamatJemputan: string;
+
+  @IsNotEmpty()
   @IsDateString()
   tanggalLayanan: string;
 }

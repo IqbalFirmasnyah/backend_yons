@@ -12,7 +12,6 @@ export class PaketWisataService {
   constructor(private prisma: PrismaService) {}
 
   public async uploadImages(id: number, files: Express.Multer.File[]) {
-    // imagesUploaded berisi array nama file yang sudah disimpan oleh Multer
     const imagesUploaded = files.map((file) => file.filename);
 
     try {
@@ -166,17 +165,13 @@ export class PaketWisataService {
   async findAll(query: PaketWisataQueryDto) {
       const { kategori, status, search, page = 1, limit = 10 } = query;
       const skip = (page - 1) * limit;
-
       const where: Prisma.PaketWisataWhereInput = {};
-
       if (kategori) {
           where.kategori = kategori;
       }
-
       if (status) {
           where.statusPaket = status;
       }
-
       if (search) {
           where.OR = [
               { namaPaket: { contains: search, mode: 'insensitive' } },
@@ -184,7 +179,6 @@ export class PaketWisataService {
               { lokasi: { contains: search, mode: 'insensitive' } },
           ];
       }
-
       const [paketWisata, total] = await Promise.all([
           this.prisma.paketWisata.findMany({
               where,

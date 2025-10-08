@@ -29,6 +29,7 @@ model Dropoff {
   fasilitasId    Int       @unique @map("fasilitas_id")
   namaTujuan     String    @map("nama_tujuan") @db.VarChar(100)
   alamatTujuan   String    @map("alamat_tujuan") @db.Text
+  alamatJemputan String    @map("alamat_jemputan") @db.VarChar(100)
   jarakKm        Int       @map("jarak_km")
   estimasiDurasi Int       @map("estimasi_durasi")
   

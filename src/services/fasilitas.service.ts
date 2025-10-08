@@ -102,7 +102,7 @@ export class FasilitasService {
                   paketLuarKota: {
                       include: { detailRute: true },
                   },
-                  dropoff: true,
+                  dropoff: false,
                   customRute: true,
               },
           });

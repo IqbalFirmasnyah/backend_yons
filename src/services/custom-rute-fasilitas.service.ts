@@ -28,52 +28,34 @@ export class CustomRuteFasilitasService {
 
   async createCustomRuteFasilitas(dto: CreateCustomRuteDto): Promise<CustomRuteFasilitas> {
     try {
-      // 1. Validasi fasilitas yang terkait
       const fasilitas = await this.prisma.fasilitas.findUnique({
-        where: { fasilitasId: dto.fasilitasId },
-        select: { jenisFasilitas: true },
-      });
-
+        where: { fasilitasId: dto.fasilitasId },select: { jenisFasilitas: true },});
       if (!fasilitas) {
-        throw new NotFoundException(`Fasilitas with ID ${dto.fasilitasId} not found.`);
-      }
+        throw new NotFoundException(`Fasilitas with ID ${dto.fasilitasId} not found.`); }
       if (fasilitas.jenisFasilitas !== JenisFasilitasEnum.CUSTOM) {
-        throw new BadRequestException(`Fasilitas with ID ${dto.fasilitasId} is not of type 'custom'.`);
-      }
-
+        throw new BadRequestException(`Fasilitas with ID ${dto.fasilitasId} is not of type 'custom'.`); }
       let totalJarakKm = 0;
       let estimasiDurasiMenit = 0;
       let previousCoords = { lat: -6.2088, lon: 106.8456 }; 
       const geocodedTujuanList: GeocodedTujuan[] = [];
-
-      // 2. Lakukan perhitungan rute
       for (const tujuan of dto.tujuanList) {
         const geocodeResult = await this.nominatimService.geocodeAddress(tujuan.alamat);
         if (!geocodeResult) {
-          throw new BadRequestException(`Alamat "${tujuan.alamat}" tidak valid atau tidak ditemukan.`);
-        }
-
+          throw new BadRequestException(`Alamat "${tujuan.alamat}" tidak valid atau tidak ditemukan.`); }
         const currentCoords = { lat: geocodeResult.latitude, lon: geocodeResult.longitude };
-        const { distanceKm, durationSeconds } = await this.osrmService.getRouteInfo(previousCoords, currentCoords);
-        
+        const { distanceKm, durationSeconds } = await this.osrmService.getRouteInfo(previousCoords, currentCoords);       
         totalJarakKm += distanceKm;
         estimasiDurasiMenit += durationSeconds / 60;
-
         geocodedTujuanList.push({
           ...tujuan,
           latitude: currentCoords.lat,
           longitude: currentCoords.lon,
           jarakDariSebelumnya: distanceKm,
           durasiDariSebelumnya: durationSeconds,
-        });
-
-        previousCoords = currentCoords;
-      }
-
-      const tarifPerKm = 50;
+          });
+        previousCoords = currentCoords;}
+      const tarifPerKm = 5000;
       const hargaEstimasi = new Prisma.Decimal(totalJarakKm * tarifPerKm);
-
-      // 3. Simpan data ke database
       return await this.prisma.customRuteFasilitas.create({
         data: {
           fasilitasId: dto.fasilitasId,
@@ -84,8 +66,7 @@ export class CustomRuteFasilitasService {
           tanggalSelesai: new Date(dto.tanggalSelesai),
           hargaEstimasi: hargaEstimasi,
           catatanKhusus: dto.catatanKhusus,
-        },
-      });
+        },});
     } catch (error) {
       console.error('Error creating custom route fasilitas in service:', error);
       if (error instanceof NotFoundException || error instanceof BadRequestException) {

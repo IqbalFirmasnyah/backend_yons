@@ -22,60 +22,46 @@ export class DropoffService {
 
   async createDropoff(dto: CreateDropoffDto): Promise<Dropoff> {
     try {
-  
-      const geocodeResult = await this.nominatimService.geocodeAddress(
-        dto.alamatTujuan,
-      );
+      const geocodeResult = await this.nominatimService.geocodeAddress(dto.alamatTujuan);
       if (!geocodeResult) {
         throw new BadRequestException(
           'Alamat tujuan tidak valid atau tidak ditemukan.',
-        );
-      }
-
-      const startCoords = { lat: -6.2088, lon: 106.8456 }; 
+        );}
+      const startCoords = { lat: -6.2088, lon: 106.8456 };
       const { distanceKm, durationSeconds } =
         await this.osrmService.getRouteInfo(startCoords, {
           lat: geocodeResult.latitude,
           lon: geocodeResult.longitude,
         });
-
-      const tarifPerKm = 50;
+      const tarifPerKm = 5000;
       const hargaEstimasi = new Prisma.Decimal(distanceKm * tarifPerKm);
-
-      // START TRANSACTION untuk memastikan kedua operasi berhasil atau tidak sama sekali
       return this.prisma.$transaction(async (prisma) => {
-        // 5. Buat entri di tabel Fasilitas terlebih dahulu
         const newFasilitas = await prisma.fasilitas.create({
           data: {
             jenisFasilitas: JenisFasilitasEnum.DROPOFF,
             namaFasilitas: `Dropoff to ${dto.namaTujuan}`,
-            deskripsi: `Layanan dropoff ke ${dto.namaTujuan}. Jarak: ${distanceKm.toFixed(2)} km, Durasi: ${(durationSeconds / 60).toFixed(0)} menit.`,
-          },
-        });
-
+            deskripsi: `Layanan dropoff ke ${dto.namaTujuan}. 
+            Jarak: ${distanceKm.toFixed(2)} km, Durasi: ${(durationSeconds / 60).toFixed(0)} menit.`,
+          },});
         const dropoffDate = new Date(dto.tanggalLayanan);
-
-        // 6. Sekarang, buat entri di tabel Dropoff
         const dropoff = await prisma.dropoff.create({
           data: {
             fasilitasId: newFasilitas.fasilitasId,
             namaTujuan: dto.namaTujuan,
             alamatTujuan: dto.alamatTujuan,
+            alamatJemputan:dto.alamatJemputan,
             jarakKm: Math.round(distanceKm),
             estimasiDurasi: Math.round(durationSeconds / 60),
             tanggalMulai: dropoffDate,
             tanggalSelesai: dropoffDate,
             hargaEstimasi: hargaEstimasi,
-          },
-        });
+          },});
         return dropoff;
       });
     } catch (error) {
       console.error('Error in createDropoff service method:', error);
-      // Prisma errors akan di-handle oleh controller atau re-throw jika tidak spesifik
       if (error instanceof BadRequestException) {
-        throw error;
-      }
+        throw error; }
       throw new InternalServerErrorException(
         'Gagal membuat layanan dropoff karena kesalahan server.',
       );
@@ -100,50 +86,47 @@ export class DropoffService {
     });
   }
 
-
-
-async updateDropoff(
-  id: number,
-  dto: UpdateDropoffDto,
-): Promise<Dropoff | null> {
-  
-  // Siapkan objek data untuk di-update
-  const updateData: any = {
+  async updateDropoff(
+    id: number,
+    dto: UpdateDropoffDto,
+  ): Promise<Dropoff | null> {
+    // Siapkan objek data untuk di-update
+    const updateData: any = {
       ...dto,
-  };
-  
-  // 🔑 PERUBAHAN UTAMA:
-  if (dto.tanggalLayanan) {
+    };
+
+    // 🔑 PERUBAHAN UTAMA:
+    if (dto.tanggalLayanan) {
       const dropoffDate = new Date(dto.tanggalLayanan);
-      
+
       // Ganti 'tanggalLayanan' dengan 'tanggalMulai' dan 'tanggalSelesai'
       updateData.tanggalMulai = dropoffDate;
       updateData.tanggalSelesai = dropoffDate;
-      
+
       // Hapus properti tanggalLayanan dari objek data jika ada
-      delete updateData.tanggalLayanan; 
-  }
-  
-  // Catatan: Jika Anda tidak menghapus tanggalLayanan dari DTO, 
-  // Anda akan mendapatkan error karena 'tanggalLayanan' bukan properti Dropoff.
-  
-  try {
-    return await this.prisma.dropoff.update({
-      where: { dropoffId: id },
-      data: updateData, // Gunakan objek data yang sudah disesuaikan
-    });
-  } catch (error) {
-    console.error(`Error updating dropoff with ID ${id} in service:`, error);
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      if (error.code === 'P2025') {
-        throw new NotFoundException(`Dropoff with ID ${id} not found.`);
-      }
+      delete updateData.tanggalLayanan;
     }
-    throw new InternalServerErrorException(
-      'Gagal memperbarui layanan dropoff.',
-    );
+
+    // Catatan: Jika Anda tidak menghapus tanggalLayanan dari DTO,
+    // Anda akan mendapatkan error karena 'tanggalLayanan' bukan properti Dropoff.
+
+    try {
+      return await this.prisma.dropoff.update({
+        where: { dropoffId: id },
+        data: updateData, // Gunakan objek data yang sudah disesuaikan
+      });
+    } catch (error) {
+      console.error(`Error updating dropoff with ID ${id} in service:`, error);
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2025') {
+          throw new NotFoundException(`Dropoff with ID ${id} not found.`);
+        }
+      }
+      throw new InternalServerErrorException(
+        'Gagal memperbarui layanan dropoff.',
+      );
+    }
   }
-}
 
   async removeDropoff(id: number): Promise<boolean> {
     try {

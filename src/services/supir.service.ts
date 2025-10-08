@@ -18,6 +18,9 @@ export class SupirService {
   async findAll() {
     return this.prisma.supir.findMany();
   }
+
+
+  
   async delete(supirId: number) {
     try {
       if (!supirId) {
