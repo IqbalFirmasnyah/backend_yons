@@ -15,7 +15,7 @@ model CustomRuteFasilitas {
   estimasiDurasi Int       @map("estimasi_durasi")
   tanggalMulai   DateTime  @map("tanggal_mulai") 
   tanggalSelesai DateTime  @map("tanggal_selesai")
-  hargaEstimasi  Decimal   @map("harga_estimasi") @db.Decimal(12, 2)
+  hargaEstimasi  Decimal   @map("harga_estimasi") @db.Decimal(12, 0)
   catatanKhusus  String?   @map("catatan_khusus") @db.Text
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
@@ -35,7 +35,7 @@ model Dropoff {
   
   tanggalMulai   DateTime  @default(now()) @map("tanggal_mulai") // Tanggal Mulai
   tanggalSelesai DateTime  @default(now()) @map("tanggal_selesai")
-  hargaEstimasi  Decimal   @map("harga_estimasi") @db.Decimal(12, 2)
+  hargaEstimasi  Decimal   @map("harga_estimasi") @db.Decimal(12, 0)
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
   fasilitas      Fasilitas @relation(fields: [fasilitasId], references: [fasilitasId], onDelete: Cascade)

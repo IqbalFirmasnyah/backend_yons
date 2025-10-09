@@ -36,7 +36,7 @@ export class RefundService {
     private gateway: NotificationGateway,
   ) {}
 
-  // ---------------- CREATE REFUND ----------------
+  
   async createRefund(userId: number, bookingId: number, dto: CreateRefundDto) {
     const booking = await this.prisma.booking.findUnique({
       where: { bookingId },
@@ -65,32 +65,27 @@ export class RefundService {
       throw new BadRequestException('Refund sudah diajukan untuk booking ini.');
     }
 
-    // === HITUNG 10% POTONGAN ===
-    // Ambil total dasar: pembayaran.jumlahBayar (jika ada) else estimasiHarga
-    // Catatan: jumlahBayar & estimasiHarga bertipe Decimal di Prisma
+    
     const baseDecimal: Prisma.Decimal = booking.pembayaran?.jumlahBayar
       ? new Prisma.Decimal(booking.pembayaran.jumlahBayar as any)
       : new Prisma.Decimal(booking.estimasiHarga as any);
 
     const tenPercent = new Prisma.Decimal(0.10);
-    const potonganAdmin = baseDecimal.mul(tenPercent); // 10% dari total
+    const potonganAdmin = baseDecimal.mul(tenPercent);
     const jumlahRefundFinal = baseDecimal.sub(potonganAdmin);
 
-    // Simpan refund; abaikan dto.jumlahRefund, gunakan perhitungan server
+
     const refund = await this.prisma.refund.create({
       data: {
         userId,
         bookingId,
         pembayaranId: dto.pembayaranId,
         alasanRefund: dto.alasanRefund,
-        // nilai bruto yang dimohonkan bisa sama dengan total dasar
-        // tapi yang penting "jumlahRefundFinal" adalah nilai setelah potongan.
         jumlahRefund: baseDecimal,
         metodeRefund: dto.metodeRefund,
         rekeningTujuan: dto.rekeningTujuan,
         statusRefund: RefundStatus.PENDING,
         kodeRefund: `REF-${Date.now()}`,
-        // simpan potongan dalam nilai UANG (bukan persen)
         jumlahPotonganAdmin: potonganAdmin,
         jumlahRefundFinal: jumlahRefundFinal,
         tanggalPengajuan: new Date(),
@@ -203,7 +198,7 @@ export class RefundService {
   async updateRefund(id: number, dto: UpdateRefundDto): Promise<Refund> {
     const existingRefund = await this.findOneRefund(id);
 
-    // Validasi transisi status
+    
     if (dto.statusRefund) {
       const currentStatus = existingRefund.statusRefund;
       const newStatus = dto.statusRefund;
@@ -273,8 +268,6 @@ export class RefundService {
             : { connect: { bookingId: dto.bookingId } }
           : undefined,
     };
-
-    // Mutual exclusivity pesanan / booking
     if (dto.pesananId) {
       data.pesananLuarKota = { disconnect: true };
       data.booking = { disconnect: true };
@@ -299,8 +292,6 @@ export class RefundService {
         processedByAdmin: true,
       },
     });
-
-    // 🔔 Notifikasi: status refund berubah
     const payload = {
       bookingId: updatedRefund.bookingId!,
       refundId: updatedRefund.refundId,

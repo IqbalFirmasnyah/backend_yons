@@ -66,7 +66,6 @@ export class BookingService {
     dto: CreateBookingDto,
     userIdFromToken: number,
   ): Promise<Booking> {
-    // Validasi mutual exclusive (paket vs paketLuarKota vs fasilitas)
     const selectedOptions = [dto.paketId, dto.paketLuarKotaId, dto.fasilitasId].filter(Boolean);
     if (selectedOptions.length > 1) {
       throw new BadRequestException(
@@ -78,8 +77,6 @@ export class BookingService {
         'At least one of paketId, paketLuarKotaId, or fasilitasId must be provided.',
       );
     }
-
-    // Ambil user + referensi supir & armada
     const [user, supir, armada] = await this.prisma.$transaction([
       this.prisma.user.findUnique({ where: { userId: userIdFromToken } }),
       this.prisma.supir.findUnique({ where: { supirId: dto.supirId } }),
@@ -88,21 +85,13 @@ export class BookingService {
     if (!user) throw new NotFoundException('User not found.');
     if (!supir) throw new NotFoundException(`Supir with ID ${dto.supirId} not found.`);
     if (!armada) throw new NotFoundException(`Armada with ID ${dto.armadaId} not found.`);
-
-    // Setup tanggal
     let finalTanggalMulaiWisata: Date = new Date(dto.tanggalMulaiWisata);
     let finalTanggalSelesaiWisata: Date = new Date(dto.tanggalSelesaiWisata || dto.tanggalMulaiWisata);
-
-    // Untuk koneksi Prisma
     let connectPaket: Prisma.PaketWisataCreateNestedOneWithoutBookingInput | undefined;
     let connectPaketLuarKota: Prisma.PaketWisataLuarKotaCreateNestedOneWithoutBookingInput | undefined;
     let connectFasilitas: Prisma.FasilitasCreateNestedOneWithoutBookingsInput | undefined;
-
-    // Harga dasar + mode
     let basePrice: Prisma.Decimal;
     let priceMode: PriceMode = PriceMode.FLAT;
-
-    // --------- Branch penentuan basePrice + mode + tanggal selesai ---------
     if (dto.paketId) {
       const paket = await this.prisma.paketWisata.findUnique({
         where: { paketId: dto.paketId },
@@ -112,7 +101,7 @@ export class BookingService {
         throw new NotFoundException(`Paket Wisata (Dalam Kota) with ID ${dto.paketId} not found.`);
       }
       basePrice = paket.harga;
-      priceMode = PriceMode.PER_PESERTA; // DIKALI
+      priceMode = PriceMode.PER_PESERTA; 
       connectPaket = { connect: { paketId: dto.paketId } };
 
       finalTanggalSelesaiWisata = new Date(finalTanggalMulaiWisata);
@@ -129,7 +118,7 @@ export class BookingService {
         );
       }
       basePrice = paketLuarKota.hargaEstimasi;
-      priceMode = PriceMode.PER_PESERTA; // DIKALI
+      priceMode = PriceMode.PER_PESERTA;
       connectPaketLuarKota = { connect: { paketLuarKotaId: dto.paketLuarKotaId } };
 
       finalTanggalSelesaiWisata = new Date(finalTanggalMulaiWisata);
@@ -157,8 +146,7 @@ export class BookingService {
             throw new BadRequestException('Fasilitas dropoff tidak memiliki detail.');
           }
           basePrice = fasilitas.dropoff.hargaEstimasi;
-          priceMode = PriceMode.FLAT; // TIDAK DIKALI
-          // dropoff = 1 hari → end = start
+          priceMode = PriceMode.FLAT; 
           finalTanggalSelesaiWisata = new Date(finalTanggalMulaiWisata);
           break;
         }
@@ -168,7 +156,7 @@ export class BookingService {
             throw new BadRequestException('Fasilitas custom tidak memiliki detail.');
           }
           basePrice = c.hargaEstimasi;
-          priceMode = PriceMode.PER_PESERTA; // DIKALI
+          priceMode = PriceMode.PER_PESERTA; 
           finalTanggalSelesaiWisata = new Date(finalTanggalMulaiWisata);
           finalTanggalSelesaiWisata.setDate(finalTanggalMulaiWisata.getDate() + c.estimasiDurasi - 1);
           break;
@@ -179,7 +167,7 @@ export class BookingService {
             throw new BadRequestException('Fasilitas paket_luar_kota tidak memiliki detail.');
           }
           basePrice = p.hargaEstimasi;
-          priceMode = PriceMode.PER_PESERTA; // DIKALI
+          priceMode = PriceMode.PER_PESERTA; 
           finalTanggalSelesaiWisata = new Date(finalTanggalMulaiWisata);
           finalTanggalSelesaiWisata.setDate(finalTanggalMulaiWisata.getDate() + p.estimasiDurasi - 1);
           break;
@@ -192,7 +180,6 @@ export class BookingService {
       throw new BadRequestException('A valid package or facility ID is required.');
     }
 
-    // Cek bentrok supir & armada
     const bookingDate = new Date();
     const expiredAt = new Date(bookingDate.getTime() + 24 * 60 * 60 * 1000); // 24 jam
 
@@ -270,7 +257,7 @@ export class BookingService {
         },
         supir: true,
         armada: true,
-        pembayaran: true, // singular
+        pembayaran: true, 
       },
       orderBy: { tanggalBooking: 'desc' },
     });
@@ -284,7 +271,6 @@ export class BookingService {
     const existingBooking = await this.prisma.booking.findUnique({
       where: { bookingId: id },
       include: {
-        // +harga agar bisa re-calc bila hanya jumlahPeserta yang berubah
         paket: { select: { durasiHari: true, harga: true } },
         paketLuarKota: { select: { estimasiDurasi: true, hargaEstimasi: true } },
         fasilitas: {
@@ -302,8 +288,6 @@ export class BookingService {
     const prevStatus = existingBooking.statusBooking;
     const prevStart = existingBooking.tanggalMulaiWisata?.getTime();
     const prevEnd = existingBooking.tanggalSelesaiWisata?.getTime();
-
-    // Validasi mutual exclusive pada update
     const updatedOptions = [dto.paketId, dto.paketLuarKotaId, dto.fasilitasId].filter(
       (val) => val !== undefined,
     );
@@ -312,8 +296,6 @@ export class BookingService {
         'Only one of paketId, paketLuarKotaId, or fasilitasId can be updated at a time.',
       );
     }
-
-    // Validasi supir/armada jika diubah
     if (dto.supirId !== undefined && dto.supirId !== null) {
       const supir = await this.prisma.supir.findUnique({
         where: { supirId: dto.supirId },
@@ -327,7 +309,6 @@ export class BookingService {
       if (!armada) throw new NotFoundException(`Armada with ID ${dto.armadaId} not found.`);
     }
 
-    // Persiapan field update
     let connectDisconnectPaket:
       | Prisma.PaketWisataUpdateOneWithoutBookingNestedInput
       | undefined;
@@ -499,7 +480,7 @@ export class BookingService {
       }
     }
 
-    // Siapkan payload update
+    
     const dataToUpdate: Prisma.BookingUpdateInput = {
       tanggalMulaiWisata: updatedTanggalMulaiWisata,
       tanggalSelesaiWisata: updatedTanggalSelesaiWisata,
@@ -507,7 +488,6 @@ export class BookingService {
       inputCustomTujuan: dto.inputCustomTujuan,
       catatanKhusus: dto.catatanKhusus,
       statusBooking: dto.statusBooking,
-      // estimasiHarga akan diisi sesudah kita calc (di bawah)
     };
 
     // Re-calc total
@@ -559,10 +539,8 @@ export class BookingService {
         },
       });
 
-      // Notifikasi perubahan
       const nowIso = new Date().toISOString();
 
-      // a) Jika status berubah
       if (dto.statusBooking && dto.statusBooking !== prevStatus) {
         const payload = {
           bookingId: updated.bookingId,
@@ -573,7 +551,6 @@ export class BookingService {
         this.push.bookingStatusChanged(updated.userId, payload);
       }
 
-      // b) Jika jadwal berubah
       const currStart = updated.tanggalMulaiWisata?.getTime();
       const currEnd = updated.tanggalSelesaiWisata?.getTime();
       const scheduleChanged =
@@ -607,7 +584,7 @@ export class BookingService {
     }
   }
 
-  // ---------- ADMIN: FIND ALL ----------
+  
   async findAllBookings(): Promise<BookingWithRelations[]> {
     return this.prisma.booking.findMany({
       include: bookingReportInclude,
@@ -615,23 +592,32 @@ export class BookingService {
     });
   }
 
-  async findAllBookingsForReport(params?: {
-    from?: Date;
-    to?: Date;
-    status?: string; // atau BookingStatus
-  }): Promise<BookingWithRelations[]> {
-    const where: Prisma.BookingWhereInput = {};
-  
-    if (params?.from || params?.to) {
+  async findAllBookingsForReport(params: { from?: Date; to?: Date; status?: string }) {
+    const where: any = {};
+
+    if (params.from || params.to) {
       where.tanggalBooking = {};
-      if (params.from) (where.tanggalBooking as any).gte = params.from;
-      if (params.to)   (where.tanggalBooking as any).lte = params.to;
+      if (params.from) where.tanggalBooking.gte = params.from;
+      if (params.to)   where.tanggalBooking.lte = params.to;
     }
-    if (params?.status) where.statusBooking = params.status as any;
-  
+
+    // ❗ Pastikan nama kolom sama dengan schema Prisma kamu
+    if (params.status) {
+      where.statusBooking = params.status as any;
+    }
+
+
     return this.prisma.booking.findMany({
       where,
-      include: bookingReportInclude,
+      include: {
+        paket: true,
+        paketLuarKota: true,
+        fasilitas: true,
+        supir: true,
+        armada: true,
+        pembayaran: true,
+        user: { select: { namaLengkap: true, email: true } },
+      },
       orderBy: { tanggalBooking: 'desc' },
     });
   }
@@ -821,7 +807,7 @@ export class BookingService {
       endDate.getUTCDate(),
     );
 
-    // (start - end) / msInDay → selisih hari penuh
+    // (start - end) / msInDay → selisih hari penpdateh
     const daysDiff = Math.floor((startUTC - endUTC) / msInDay);
     return daysDiff;
   }
@@ -837,7 +823,7 @@ export class BookingService {
     const MIN_DAYS_FOR_REFUND = 3;
     const now = new Date();
 
-    // Hanya untuk booking yang sudah dikonfirmasi
+    
     if (booking.statusBooking !== BookingStatus.CONFIRMED) {
       return {
         eligible: false,
@@ -856,4 +842,10 @@ export class BookingService {
 
     return { eligible: true, booking };
   }
+
+  
 }
+
+
+
+

@@ -23,50 +23,54 @@ export class DropoffService {
   async createDropoff(dto: CreateDropoffDto): Promise<Dropoff> {
     try {
       const geocodeResult = await this.nominatimService.geocodeAddress(dto.alamatTujuan);
-      if (!geocodeResult) {
-        throw new BadRequestException(
-          'Alamat tujuan tidak valid atau tidak ditemukan.',
-        );}
+      if (!geocodeResult) throw new BadRequestException('Alamat tujuan tidak valid atau tidak ditemukan.');
+  
       const startCoords = { lat: -6.2088, lon: 106.8456 };
-      const { distanceKm, durationSeconds } =
-        await this.osrmService.getRouteInfo(startCoords, {
-          lat: geocodeResult.latitude,
-          lon: geocodeResult.longitude,
-        });
+      const { distanceKm, durationSeconds } = await this.osrmService.getRouteInfo(startCoords, {
+        lat: geocodeResult.latitude, lon: geocodeResult.longitude,
+      });
+  
       const tarifPerKm = 5000;
-      const hargaEstimasi = new Prisma.Decimal(distanceKm * tarifPerKm);
+  
+      // ✅ Pastikan integer rupiah
+      const hargaEstimasiInt = Math.round(distanceKm * tarifPerKm); // atau Math.ceil() kalau mau “pembulatan ke atas”
+      const hargaEstimasi = new Prisma.Decimal(hargaEstimasiInt);
+  
       return this.prisma.$transaction(async (prisma) => {
         const newFasilitas = await prisma.fasilitas.create({
           data: {
             jenisFasilitas: JenisFasilitasEnum.DROPOFF,
             namaFasilitas: `Dropoff to ${dto.namaTujuan}`,
             deskripsi: `Layanan dropoff ke ${dto.namaTujuan}. 
-            Jarak: ${distanceKm.toFixed(2)} km, Durasi: ${(durationSeconds / 60).toFixed(0)} menit.`,
-          },});
+              Jarak: ${distanceKm.toFixed(2)} km, Durasi: ${(durationSeconds / 60).toFixed(0)} menit.`,
+          },
+        });
+  
         const dropoffDate = new Date(dto.tanggalLayanan);
+  
         const dropoff = await prisma.dropoff.create({
           data: {
             fasilitasId: newFasilitas.fasilitasId,
             namaTujuan: dto.namaTujuan,
             alamatTujuan: dto.alamatTujuan,
-            alamatJemputan:dto.alamatJemputan,
-            jarakKm: Math.round(distanceKm),
+            alamatJemputan: dto.alamatJemputan,
+            jarakKm: Math.round(distanceKm),            // ✅ integer km
             estimasiDurasi: Math.round(durationSeconds / 60),
             tanggalMulai: dropoffDate,
             tanggalSelesai: dropoffDate,
-            hargaEstimasi: hargaEstimasi,
-          },});
+            hargaEstimasi,                              // ✅ sudah integer
+          },
+        });
+  
         return dropoff;
       });
     } catch (error) {
       console.error('Error in createDropoff service method:', error);
-      if (error instanceof BadRequestException) {
-        throw error; }
-      throw new InternalServerErrorException(
-        'Gagal membuat layanan dropoff karena kesalahan server.',
-      );
+      if (error instanceof BadRequestException) throw error;
+      throw new InternalServerErrorException('Gagal membuat layanan dropoff karena kesalahan server.');
     }
   }
+  
 
   // --- Metode lainnya (findAll, findOne, update, remove) tetap sama ---
   async findAllDropoffs(): Promise<Dropoff[]> {

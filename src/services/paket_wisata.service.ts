@@ -15,40 +15,32 @@ export class PaketWisataService {
     const imagesUploaded = files.map((file) => file.filename);
 
     try {
-      // 1. Cek keberadaan paket wisata
       const travelPackage = await this.prisma.paketWisata.findUnique({
         where: { paketId: id },
       });
 
       if (!travelPackage) {
-        // Throw error agar blok catch bisa menghapus file
+
         throw new NotFoundException('Travel Package not found');
       }
-
-      // 2. Gabungkan daftar gambar baru dengan yang sudah ada
       const newImagesList = travelPackage.images
         ? [...travelPackage.images, ...imagesUploaded]
         : imagesUploaded;
-
-      // 3. Update database
       const updatedPackage = await this.prisma.paketWisata.update({
         where: { paketId: id },
         data: {
-          images: newImagesList, // Update kolom images di DB
+          images: newImagesList, 
         },
       });
-
-      // 4. Sukses
       return {
         data: this.mapToResponseDto(updatedPackage),
         message: 'Images uploaded successfully',
       };
     } catch (error) {
-      // 5. Rollback File System: Hapus file jika terjadi error database
       if (files.length > 0) {
         for (const file of files) {
           try {
-            // Gunakan file.path dari Multer untuk menghapus file yang tersimpan sementara
+           
             if (fs.existsSync(file.path)) {
               fs.unlinkSync(file.path);
               console.log(`Deleted uploaded file on rollback: ${file.path}`);
@@ -58,8 +50,6 @@ export class PaketWisataService {
           }
         }
       }
-
-      // Re-throw the appropriate exception
       if (error instanceof NotFoundException) {
         throw new NotFoundException(`Paket wisata with ID ${id} not found`);
       }
@@ -133,7 +123,6 @@ export class PaketWisataService {
     try {
       const paketWisata = await this.prisma.paketWisata.create({
         data: {
-          // ... (properti createPaketWisataDto)
           namaPaket: createPaketWisataDto.namaPaket,
           namaTempat: createPaketWisataDto.namaTempat,
           lokasi: createPaketWisataDto.lokasi,
@@ -146,7 +135,7 @@ export class PaketWisataService {
           fotoPaket: createPaketWisataDto.fotoPaket,
           kategori: createPaketWisataDto.kategori,
           statusPaket: createPaketWisataDto.statusPaket || 'aktif',
-          images: [], // Inisialisasi array gambar kosong saat membuat paket baru
+          images: [], 
         },
       });
 

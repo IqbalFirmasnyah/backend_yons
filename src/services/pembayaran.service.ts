@@ -11,88 +11,84 @@ export class PaymentService {
     private midtransService: MidtransService,
   ) {}
 
- // --- Kode dari src/services/pembayaran.service.ts (kode yang sudah diperbaiki) ---
+  // --- Kode dari src/services/pembayaran.service.ts (kode yang sudah diperbaiki) ---
 
-async createPaymentForBooking(bookingId: number, userId: number) {
-  // Get booking details
-  const booking = await this.prisma.booking.findFirst({
-    where: { bookingId, userId },
-    include: {
-      user: true,
-      paket: true,
-      paketLuarKota: true,
-      fasilitas: {
-        include: {
-          customRute: true,
-          dropoff: true,
+  async createPaymentForBooking(bookingId: number, userId: number) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { bookingId, userId },
+      include: {
+        user: true,
+        paket: true,
+        paketLuarKota: true,
+        fasilitas: {
+          include: {
+            customRute: true,
+            dropoff: true,
+          },
         },
       },
-    },
-  });
-
-  if (!booking) {
-    throw new NotFoundException('Booking not found');
-  }
-
-  
-  // Generate unique order ID
-  const orderId = `${booking.bookingId}-${this.makeid(5)}`;
-
-  // Prepare item details
-  const itemDetails: { id: string; price: number; quantity: number; name: string; }[] = [];
-  let serviceName = '';
-
-  if (booking.paket) {
-    serviceName = booking.paket.namaPaket;
-    itemDetails.push({
-      id: `paket-${booking.paket.paketId}`,
-      price: Number(booking.estimasiHarga),
-      quantity: 1,
-      name: booking.paket.namaPaket,
     });
-  } else if (booking.paketLuarKota) {
-    serviceName = booking.paketLuarKota.namaPaket;
-    itemDetails.push({
-      id: `paket-luar-kota-${booking.paketLuarKota.paketLuarKotaId}`,
-      price: Number(booking.estimasiHarga),
-      quantity: 1,
-      name: booking.paketLuarKota.namaPaket,
-    });
-  } else if (booking.fasilitas) {
-    serviceName = booking.fasilitas.namaFasilitas;
-    itemDetails.push({
-      id: `fasilitas-${booking.fasilitas.fasilitasId}`,
-      price: Number(booking.estimasiHarga),
-      quantity: 1,
-      name: booking.fasilitas.namaFasilitas,
-    });
-  }
 
-  // Create transaction data
-  const transactionData: CreateTransactionDto = {
-    orderId,
-    grossAmount: Number(booking.estimasiHarga),
-    customerDetails: {
-      firstName: booking.user.namaLengkap.split(' ')[0],
-      lastName: booking.user.namaLengkap.split(' ').slice(1).join(' ') || undefined,
-      email: booking.user.email,
-      phone: booking.user.noHp,
-    },
-    itemDetails,
-    customExpiry: {
-      expiry_duration: 24,
-      unit: 'hour',
-    },
-  };
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+    const orderId = `${booking.bookingId}-${this.makeid(5)}`;
+    const itemDetails: {
+      id: string;
+      price: number;
+      quantity: number;
+      name: string;
+    }[] = [];
+    let serviceName = '';
 
-  // Create Midtrans transaction
-  const snapTransaction = await this.midtransService.createSnapTransaction(transactionData);
+    if (booking.paket) {
+      serviceName = booking.paket.namaPaket;
+      itemDetails.push({
+        id: `paket-${booking.paket.paketId}`,
+        price: Number(booking.estimasiHarga),
+        quantity: 1,
+        name: booking.paket.namaPaket,
+      });
+    } else if (booking.paketLuarKota) {
+      serviceName = booking.paketLuarKota.namaPaket;
+      itemDetails.push({
+        id: `paket-luar-kota-${booking.paketLuarKota.paketLuarKotaId}`,
+        price: Number(booking.estimasiHarga),
+        quantity: 1,
+        name: booking.paketLuarKota.namaPaket,
+      });
+    } else if (booking.fasilitas) {
+      serviceName = booking.fasilitas.namaFasilitas;
+      itemDetails.push({
+        id: `fasilitas-${booking.fasilitas.fasilitasId}`,
+        price: Number(booking.estimasiHarga),
+        quantity: 1,
+        name: booking.fasilitas.namaFasilitas,
+      });
+    }
+    const transactionData: CreateTransactionDto = {
+      orderId,
+      grossAmount: Number(booking.estimasiHarga),
+      customerDetails: {
+        firstName: booking.user.namaLengkap.split(' ')[0],
+        lastName:
+          booking.user.namaLengkap.split(' ').slice(1).join(' ') || undefined,
+        email: booking.user.email,
+        phone: booking.user.noHp,
+      },
+      itemDetails,
+      customExpiry: {
+        expiry_duration: 24,
+        unit: 'hour',
+      },
+    };
 
-  // Save payment record to database
-  const payment = await this.prisma.pembayaran.create({
+    const snapTransaction =
+      await this.midtransService.createSnapTransaction(transactionData);
+    const payment = await this.prisma.pembayaran.create({
       data: {
         userId,
-        bookingId: booking.bookingId, 
+        bookingId: booking.bookingId,
         metodePembayaran: 'midtrans',
         jumlahBayar: booking.estimasiHarga,
         tanggalPembayaran: new Date(),
@@ -104,34 +100,32 @@ async createPaymentForBooking(bookingId: number, userId: number) {
         }),
       },
     });
+    await this.prisma.booking.update({
+      where: { bookingId },
+      data: { statusBooking: 'pending_payment' },
+    });
 
-  // Update booking status
-  await this.prisma.booking.update({
-    where: { bookingId },
-    data: { statusBooking: 'pending_payment' },
-  });
-
-  return {
-    paymentId: payment.pembayaranId,
-    snapToken: snapTransaction.token,
-    redirectUrl: snapTransaction.redirect_url,
-    orderId,
-  };
-}
-
-private makeid(length : number) {
-  var result           = '';
-  var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  var charactersLength = characters.length;
-  for ( var i = 0; i < length; i++ ) {
-      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    return {
+      paymentId: payment.pembayaranId,
+      snapToken: snapTransaction.token,
+      redirectUrl: snapTransaction.redirect_url,
+      orderId,
+    };
   }
-  return result;
-}
 
+  private makeid(length: number) {
+    var result = '';
+    var characters =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    var charactersLength = characters.length;
+    for (var i = 0; i < length; i++) {
+      result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    }
+    return result;
+  }
 
   async handleWebhookNotification(webhookData: any) {
-    console.log('webhookData: ', webhookData)
+    console.log('webhookData: ', webhookData);
     const {
       order_id,
       status_code,
@@ -143,7 +137,9 @@ private makeid(length : number) {
       transaction_time,
     } = webhookData;
 
-    this.logger.log(`[Webhook] Received Midtrans webhook: ${JSON.stringify(webhookData)}`);
+    this.logger.log(
+      `[Webhook] Received Midtrans webhook: ${JSON.stringify(webhookData)}`,
+    );
 
     // Verify signature
     const isSignatureValid = this.midtransService.verifyWebhookSignature(
@@ -197,8 +193,10 @@ private makeid(length : number) {
         newStatus = 'rejected';
         bookingStatus = 'expired';
         break;
-        default: // Tambahkan default case untuk status yang tidak terduga
-        this.logger.warn(`[Webhook] Unhandled transaction_status: ${transaction_status} for order ${order_id}`);
+      default: // Tambahkan default case untuk status yang tidak terduga
+        this.logger.warn(
+          `[Webhook] Unhandled transaction_status: ${transaction_status} for order ${order_id}`,
+        );
         newStatus = 'unknown'; // Atau status lain yang sesuai
         bookingStatus = 'unknown_status'; // Atau status lain yang sesuai
         break;
@@ -261,7 +259,9 @@ private makeid(length : number) {
       });
     }
 
-    this.logger.log(`Payment webhook processed for order ${order_id}: ${transaction_status}`);
+    this.logger.log(
+      `Payment webhook processed for order ${order_id}: ${transaction_status}`,
+    );
 
     return {
       success: true,
@@ -283,14 +283,19 @@ private makeid(length : number) {
     }
 
     const buktiData = JSON.parse(payment.buktiPembayaran || '{}');
-    
+
     if (buktiData.orderId) {
       // Get latest status from Midtrans
       try {
-        const midtransStatus = await this.midtransService.getTransactionStatus(buktiData.orderId);
-        
+        const midtransStatus = await this.midtransService.getTransactionStatus(
+          buktiData.orderId,
+        );
+
         // Update local status if different
-        if (midtransStatus.transaction_status !== buktiData.midtransResponse?.transaction_status) {
+        if (
+          midtransStatus.transaction_status !==
+          buktiData.midtransResponse?.transaction_status
+        ) {
           await this.handleWebhookNotification({
             order_id: buktiData.orderId,
             status_code: midtransStatus.status_code,

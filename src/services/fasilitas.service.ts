@@ -32,23 +32,19 @@ export class FasilitasService {
           }
 
           try {
-              // Pastikan hargaEstimasi dikonversi ke Decimal saat CREATE
               const createdPaket = await this.prisma.paketWisataLuarKota.create({
                   data: {
                       namaPaket: paketLuarKota.namaPaket,
                       tujuanUtama: paketLuarKota.tujuanUtama,
                       totalJarakKm: paketLuarKota.totalJarakKm,
                       estimasiDurasi: paketLuarKota.estimasiDurasi,
-                      // Konversi string hargaEstimasi ke Decimal
                       hargaEstimasi: new Prisma.Decimal(paketLuarKota.hargaEstimasi as unknown as string), 
                       statusPaket: paketLuarKota.statusPaket,
                       pilihTanggal: new Date(paketLuarKota.pilihTanggal),
-                      fotoPaketLuar: [], // Inisialisasi images
+                      fotoPaketLuar: [], 
                       detailRute: {
-                          // Gunakan createMany atau pastikan array detailRute tidak kosong
                           create: paketLuarKota.detailRute.map(rute => ({
                               ...rute,
-                              // Hapus properti yang mungkin tidak ada di DetailRuteLuarKotaCreateInput jika Anda mengambilnya dari DTO Update/Response
                               urutanKe: rute.urutanKe, 
                               namaDestinasi: rute.namaDestinasi,
                               alamatDestinasi: rute.alamatDestinasi,
@@ -63,7 +59,6 @@ export class FasilitasService {
               paketLuarKotaId = createdPaket.paketLuarKotaId;
           } catch (error) {
               console.error('Gagal membuat PaketWisataLuarKota:', error);
-              // Throw error 500 dengan detail
               throw new InternalServerErrorException('Gagal membuat data paket luar kota.');
           }
       }
@@ -137,7 +132,6 @@ export class FasilitasService {
 
   async updateFasilitas(id: number, updateFasilitasDto: UpdateFasilitasDto): Promise<Fasilitas | null> {
       
-      // 1. Dapatkan data Fasilitas yang sudah ada
       const initialData = await this.prisma.fasilitas.findUnique({
           where: { fasilitasId: id },
           include: { paketLuarKota: true },
@@ -151,25 +145,21 @@ export class FasilitasService {
       const targetJenisFasilitas = fasilitasData.jenisFasilitas || initialData.jenisFasilitas;
       const paketLuarKotaId = initialData.paketLuarKota?.paketLuarKotaId;
 
-      // Gunakan transaksi untuk menjamin atomisitas
       try {
           const result = await this.prisma.$transaction(async (tx) => {
               
-              // --- 2. Update Fasilitas Dasar ---
               await tx.fasilitas.update({
                   where: { fasilitasId: id },
                   data: {
                       namaFasilitas: fasilitasData.namaFasilitas,
                       deskripsi: fasilitasData.deskripsi,
                       jenisFasilitas: targetJenisFasilitas,
-                      // Tidak ada perubahan pada paketLuarKotaId di sini kecuali jika jenis berubah
+                     
                   },
               });
 
-              // --- 3. Update Paket Luar Kota dan Detail Rute (Jika relevan) ---
               if (targetJenisFasilitas === JenisFasilitasEnum.PAKET_LUAR_KOTA && paketLuarKotaId && paketLuarKota) {
                   
-                  // a. Hapus semua rute lama dan buat yang baru (full replace)
                   if (paketLuarKota.detailRute && paketLuarKota.detailRute.length > 0) {
                       await tx.detailRuteLuarKota.deleteMany({
                           where: { paketLuarKotaId: paketLuarKotaId },
@@ -179,7 +169,6 @@ export class FasilitasService {
                           data: paketLuarKota.detailRute.map(rute => ({
                               ...rute,
                               paketLuarKotaId: paketLuarKotaId,
-                              // Filter fields agar hanya yang ada di DetailRuteLuarKotaCreateInput yang masuk
                               urutanKe: rute.urutanKe, 
                               namaDestinasi: rute.namaDestinasi,
                               alamatDestinasi: rute.alamatDestinasi,
@@ -248,15 +237,12 @@ export class FasilitasService {
           if (!fasilitas) {
               throw new NotFoundException(`Fasilitas dengan ID ${id} tidak ditemukan.`);
           }
-
-          // Gunakan transaksi untuk menghapus paket terkait
           await this.prisma.$transaction(async (tx) => {
               if (fasilitas.jenisFasilitas === JenisFasilitasEnum.PAKET_LUAR_KOTA && fasilitas.paketLuarKotaId) {
                   await tx.paketWisataLuarKota.delete({
                       where: { paketLuarKotaId: fasilitas.paketLuarKotaId },
                   });
               }
-              // Hapus fasilitas itu sendiri
               await tx.fasilitas.delete({
                   where: { fasilitasId: id },
               });
@@ -264,7 +250,6 @@ export class FasilitasService {
 
           return true;
       } catch (error) {
-          // Pengecekan P2025 untuk NotFoundException dari delete
           if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
                throw new NotFoundException(`Fasilitas dengan ID ${id} tidak ditemukan.`);
           }
