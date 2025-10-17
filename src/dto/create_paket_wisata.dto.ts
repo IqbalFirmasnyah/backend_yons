@@ -56,8 +56,6 @@ export class CreatePaketWisataDto {
   @IsString()
   fotoPaket?: string | null;
 
-  // @ApiProperty({ type: [String], example: ['image-1.jpg', 'image-2.jpg'] })
-  // fotoPaketLuar: string[];
 
   @IsEnum(KategoriPaket)
   kategori: KategoriPaket;
