@@ -14,7 +14,6 @@ RUN npm run build
 # Stage 2: Production
 FROM node:22-alpine AS production
 RUN apk add --no-cache \
-  libc6-compat \
   chromium \
   nss \
   freetype \
