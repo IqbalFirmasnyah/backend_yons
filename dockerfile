@@ -1,5 +1,19 @@
 # Stage 1: Build
 FROM node:22-alpine AS builder
+
+RUN apk add --no-cache \
+  libc6-compat \
+  chromium \
+  nss \
+  freetype \
+  freetype-dev \
+  harfbuzz \
+  ca-certificates \
+  ttf-freefont
+
+
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_SKIP_DOWNLOAD=true
 WORKDIR /app
 
 COPY package*.json ./
