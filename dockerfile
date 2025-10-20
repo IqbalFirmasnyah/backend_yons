@@ -1,6 +1,18 @@
 # Stage 1: Build
 FROM node:22-alpine AS builder
 
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+
+# Stage 2: Production
+FROM node:22-alpine AS production
 RUN apk add --no-cache \
   libc6-compat \
   chromium \
@@ -14,17 +26,6 @@ RUN apk add --no-cache \
 
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-WORKDIR /app
-
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npx prisma generate
-RUN npm run build
-
-
-# Stage 2: Production
-FROM node:22-alpine AS production
 WORKDIR /app
 
 COPY --from=builder /app/package*.json ./
