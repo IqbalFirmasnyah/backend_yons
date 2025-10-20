@@ -67,7 +67,6 @@ export class RescheduleController {
     };
   }
 
-  // Contoh RescheduleController
   @Post('validate/:bookingId')
   async validateReschedule(
     @Param('bookingId') id: number,
@@ -132,6 +131,7 @@ export class RescheduleController {
       data: updatedReschedule,
     };
   }
+  
 
   @UseGuards(JwtAuthGuard)
   @Get(':id')
@@ -177,4 +177,31 @@ export class RescheduleController {
       data: reschedules,
     };
   }
+
+  
+@UseGuards(JwtAuthGuard)
+@Get('my')
+@ApiOperation({ summary: 'Get my reschedule requests (by user)' })
+@SwaggerApiResponse({ status: HttpStatus.OK, description: 'My reschedules retrieved successfully.' })
+async findMy(@Request() req) {
+  const userId = req.user.id;
+  const items = await this.rescheduleService.findMineByUserId(userId);
+  return {
+    statusCode: HttpStatus.OK,
+    message: 'My reschedules retrieved successfully',
+    data: items,
+  };
+}
+
+@UseGuards(JwtAuthGuard)
+@Get('by-booking/:bookingId')
+async byBooking(
+  @Param('bookingId', ParseIntPipe) bookingId: number,
+  @Request() req,
+) {
+  const userId = req.user.id;
+  const items = await this.rescheduleService.findByBooking(bookingId, userId);
+  return { statusCode: 200, data: items };
+}
+
 }

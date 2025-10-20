@@ -1,17 +1,8 @@
 // src/controllers/report.controller.ts
-import {
-  Controller,
-  Get,
-  Query,
-  Res,
-  HttpStatus,
-  BadRequestException,
-  Header,
-} from '@nestjs/common';
+import { Controller, Get, Query, Res, HttpStatus, BadRequestException } from '@nestjs/common';
 import { ReportService } from 'src/services/report.service';
 import { PdfService } from 'src/services/pdf.service';
 import { Response } from 'express';
-import { BookingService } from 'src/services/booking.service';
 
 function parseDate(s?: string): Date | undefined {
   if (!s) return undefined;
@@ -26,7 +17,6 @@ export class ReportController {
     private readonly pdfService: PdfService,
   ) {}
 
-  // JSON
   @Get('bookings')
   async getBookingsReport(
     @Query('from') from?: string,
@@ -37,7 +27,6 @@ export class ReportController {
       from: from ? new Date(from) : undefined,
       to: to ? new Date(to) : undefined,
     };
-
     const result = await this.reportService.generateBookingsReport(period, { status });
     return { data: result };
   }
@@ -49,26 +38,30 @@ export class ReportController {
     @Query('to') to?: string,
     @Query('status') status?: string,
   ) {
-    const period = {
-      from: from ? new Date(from) : undefined,
-      to: to ? new Date(to) : undefined,
-    };
-
-    const result = await this.reportService.generateBookingsReport(period, { status });
-    const html = this.reportService.renderBookingsHtml(result, { status });
-
-    const pdfBuffer = await this.pdfService.htmlToPdf(html);
-    if (!pdfBuffer) throw new BadRequestException('Gagal membuat PDF');
-
-    const today = new Date().toISOString().slice(0, 10);
-    const suffix = `${from || 'ALL'}_${to || 'ALL'}${status ? `_${status}` : ''}`;
-    const filename = `laporan-booking_${suffix}_${today}.pdf`;
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(pdfBuffer);
+    try {
+      if (from === '') from = undefined;
+      if (to === '') to = undefined;
+      if (status === '') status = undefined;
+      const period = {
+        from: from ? new Date(from) : undefined,
+        to: to ? new Date(to) : undefined,
+      };
+      const result = await this.reportService.generateBookingsReport(period, { status });
+      const html = this.reportService.renderBookingsHtml(result, { status });
+      const pdfBuffer = await this.pdfService.htmlToPdf(html);
+      if (!pdfBuffer) throw new BadRequestException('Gagal membuat PDF');
+      const today = new Date().toISOString().slice(0, 10);
+      const suffix = `${from || 'ALL'}_${to || 'ALL'}${status ? `_${status}` : ''}`;
+      const filename = `laporan-booking_${suffix}_${today}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Content-Length', String(pdfBuffer.length));
+      return res.status(HttpStatus.OK).send(pdfBuffer);
+    } catch (err: any) {
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).send(err?.message || 'Internal Server Error saat membuat PDF');
+    }
   }
-
 
   @Get('refunds')
   async refundsJson(
@@ -77,9 +70,7 @@ export class ReportController {
     @Query('status') status?: string,
   ) {
     const period = { from: parseDate(from), to: parseDate(to) };
-    const data = await this.reportService.generateRefundsReport(period, {
-      status,
-    });
+    const data = await this.reportService.generateRefundsReport(period, { status });
     return {
       statusCode: HttpStatus.OK,
       message: 'Laporan refund (JSON)',
@@ -89,7 +80,6 @@ export class ReportController {
     };
   }
 
-  /* =================== REFUNDS (PDF) ==================== */
   @Get('refunds.pdf')
   async refundsPdf(
     @Res() res: Response,
@@ -97,20 +87,25 @@ export class ReportController {
     @Query('to') to?: string,
     @Query('status') status?: string,
   ) {
-    const period = { from: parseDate(from), to: parseDate(to) };
-    const report = await this.reportService.generateRefundsReport(period, {
-      status,
-    });
-    const html = this.reportService.renderRefundsHtml(report);
-
-    const pdfBuffer = await this.pdfService.htmlToPdf(html);
-    if (!pdfBuffer) throw new BadRequestException('Gagal membuat PDF');
-
-    const today = new Date().toISOString().slice(0, 10);
-    const filename = `laporan-refund_${today}.pdf`;
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.send(pdfBuffer);
+    try {
+      if (from === '') from = undefined;
+      if (to === '') to = undefined;
+      if (status === '') status = undefined;
+      const period = { from: parseDate(from), to: parseDate(to) };
+      const report = await this.reportService.generateRefundsReport(period, { status });
+      const html = this.reportService.renderRefundsHtml(report);
+      const pdfBuffer = await this.pdfService.htmlToPdf(html);
+      if (!pdfBuffer) throw new BadRequestException('Gagal membuat PDF');
+      const today = new Date().toISOString().slice(0, 10);
+      const suffix = `${from || 'ALL'}_${to || 'ALL'}${status ? `_${status}` : ''}`;
+      const filename = `laporan-refund_${suffix}_${today}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.setHeader('Content-Length', String(pdfBuffer.length));
+      return res.status(HttpStatus.OK).send(pdfBuffer);
+    } catch (err: any) {
+      return res.status(HttpStatus.INTERNAL_SERVER_ERROR).send(err?.message || 'Internal Server Error saat membuat PDF');
+    }
   }
 }

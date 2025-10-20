@@ -84,6 +84,7 @@ export class RescheduleService {
       );
     }
   }
+  
 
   /** ====== VALIDATE ONLY (dipanggil controller POST /reschedule/validate/:bookingId) ====== */
   async validateOnly(
@@ -281,13 +282,45 @@ export class RescheduleService {
     return updated;
   }
 
-  /** ====================== QUERY ========================= */
   async findOne(id: number): Promise<Reschedule | null> {
     return this.prisma.reschedule.findUnique({
       where: { rescheduleId: id },
       include: { booking: true, user: true },
     });
   }
+
+  // src/services/reschedule.service.ts
+async findMineByUserId(userId: number) {
+  return this.prisma.reschedule.findMany({
+    where: { userId },
+    orderBy: { rescheduleId: 'desc' },
+    include: {
+      booking: {
+        select: {
+          bookingId: true,
+          kodeBooking: true,
+          tanggalMulaiWisata: true,
+          tanggalSelesaiWisata: true,
+          statusBooking: true,
+        },
+      },
+    },
+  });
+}
+
+
+async findByBooking(bookingId: number, userId: number) {
+  const booking = await this.prisma.booking.findUnique({ where: { bookingId } });
+  if (!booking) throw new NotFoundException('Booking not found');
+  if (booking.userId !== userId) throw new UnauthorizedException('Forbidden');
+
+  return this.prisma.reschedule.findMany({
+    where: { bookingId },
+    orderBy: { rescheduleId: 'desc' },
+  });
+}
+
+
 
   async findAllPending(): Promise<Reschedule[]> {
     return this.prisma.reschedule.findMany({
