@@ -140,6 +140,7 @@ export class RefundController {
         userName: r.user?.namaLengkap ?? '-', 
         jumlahRefund: r.jumlahRefund,
         statusRefund: r.statusRefund,
+        alasanRefund: r.alasanRefund,
         createdAt: r.createdAt,
       }));
 

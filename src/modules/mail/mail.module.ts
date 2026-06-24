@@ -9,14 +9,11 @@ import { existsSync } from 'fs';
 function resolveTemplatesDir() {
   const distPath = join(process.cwd(), 'dist', 'src', 'modules', 'mail', 'templates');
   const srcPath  = join(process.cwd(), 'src', 'modules', 'mail', 'templates');
-
-
   if (existsSync(distPath)) return distPath;
   if (existsSync(srcPath))  return srcPath;
-
   throw new Error(
     `Mail templates directory NOT FOUND.\nChecked:\n- ${distPath}\n- ${srcPath}\n` +
-    `Pastikan file: src/modules/mail/templates/welcome.hbs`
+    `Pastikan file: src/modules/mail/templates/welcome.hbs atau booking-new.hbs`
   );
 }
 

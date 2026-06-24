@@ -1,0 +1,61 @@
+<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;">
+  <h2 style="margin-bottom:4px;">Booking Baru Masuk</h2>
+  <p style="margin-top:0;">Ada booking baru yang perlu ditinjau oleh Admin.</p>
+
+  <table style="border-collapse:collapse;">
+    <tr>
+      <td style="padding-right:8px;"><strong>Kode Booking</strong></td>
+      <td>: {{booking.kodeBooking}}</td>
+    </tr>
+    <tr>
+      <td style="padding-right:8px;"><strong>Tanggal Booking</strong></td>
+      <td>: {{booking.tanggalBookingText}}</td>
+    </tr>
+    <tr>
+      <td style="padding-right:8px;"><strong>Periode Layanan</strong></td>
+      <td>: {{booking.periodeText}}</td>
+    </tr>
+    <tr>
+      <td style="padding-right:8px;"><strong>Jumlah Peserta</strong></td>
+      <td>: {{booking.jumlahPeserta}}</td>
+    </tr>
+    <tr>
+      <td style="padding-right:8px;"><strong>Estimasi Harga</strong></td>
+      <td>: {{booking.estimasiHargaText}}</td>
+    </tr>
+    <tr>
+      <td style="padding-right:8px;"><strong>Status</strong></td>
+      <td>: {{booking.statusBooking}}</td>
+    </tr>
+    {{#if booking.userText}}
+      <tr>
+        <td style="padding-right:8px;"><strong>Pemesan</strong></td>
+        <td>: {{booking.userText}}</td>
+      </tr>
+    {{/if}}
+    {{#if booking.supirText}}
+      <tr>
+        <td style="padding-right:8px;"><strong>Supir</strong></td>
+        <td>: {{booking.supirText}}</td>
+      </tr>
+    {{/if}}
+    {{#if booking.armadaText}}
+      <tr>
+        <td style="padding-right:8px;"><strong>Armada</strong></td>
+        <td>: {{booking.armadaText}}</td>
+      </tr>
+    {{/if}}
+  </table>
+
+  {{#if dashboardUrl}}
+    <p style="margin-top:16px;">
+      <a href="{{dashboardUrl}}" target="_blank" rel="noopener noreferrer"
+         style="display:inline-block;background:#111;color:#fff;padding:10px 14px;border-radius:6px;text-decoration:none;">
+        Lihat di Dashboard Admin
+      </a>
+    </p>
+  {{/if}}
+
+  <p style="color:#666;font-size:12px;margin-top:16px;">Email otomatis — mohon tidak membalas.</p>
+  <p style="color:#666;font-size:12px;margin-top:0;">{{appName}}</p>
+</div>

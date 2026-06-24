@@ -16,11 +16,11 @@ import { Type, Transform } from 'class-transformer';
 // Assuming you have an enum for StatusPembayaran in your Pembayaran module/DTOs
 // You might need to import it if it's external, or redefine if specific to Refund process.
 export enum RefundStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  PROCESSING = 'processing',
-  COMPLETED = 'completed',
-  REJECTED = 'rejected',
+  PENDING = 'menunggu',
+  APPROVED = 'disetujui',
+  PROCESSING = 'diproses',
+  COMPLETED = 'berhasil',
+  REJECTED = 'ditolak',
 }
 
 export enum RefundMethod {

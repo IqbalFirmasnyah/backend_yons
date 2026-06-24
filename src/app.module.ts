@@ -27,6 +27,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { NotificationModule } from './notification/notification.module';
 import { ReportModule } from './modules/report/report.module';
+import { GeoModule } from './modules/geo/geo.module';
 
 
 
@@ -63,6 +64,7 @@ import { ReportModule } from './modules/report/report.module';
     DropoffModule,
     RescheduleModule,
     NotificationModule,
+    GeoModule
     
   ],
   providers: [

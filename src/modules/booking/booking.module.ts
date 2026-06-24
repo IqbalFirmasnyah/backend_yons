@@ -8,6 +8,7 @@ import { ArmadaModule } from '../armada/armada.module';
 import { DropoffModule } from '../dropoff/dropoff.module';
 import { SupirModule } from '../supir/supir.module';
 import { CustomRuteFasilitasModule } from '../custom-rute-fasilitas/custom-rute-fasilitas.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { CustomRuteFasilitasModule } from '../custom-rute-fasilitas/custom-rute-
     ArmadaModule, 
     SupirModule,
     CustomRuteFasilitasModule,
-    
+    MailModule, 
   ],
   controllers: [BookingController],
   providers: [BookingService],

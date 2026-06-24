@@ -14,9 +14,9 @@ import { PushNotificationService } from './notification/push-notification.servic
 import { NotificationGateway } from 'src/notification/notification.gateway';
 
 enum RescheduleStatus {
-  PENDING = 'pending',
-  APPROVED = 'approved',
-  REJECTED = 'rejected',
+  PENDING = 'menunggu',
+  APPROVED = 'disetujui',
+  REJECTED = 'ditolak',
 }
 
 @Injectable()

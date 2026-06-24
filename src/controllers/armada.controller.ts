@@ -14,18 +14,18 @@ import {
   UseGuards, 
   BadRequestException,
   Query,
-  UseInterceptors, // Untuk unggah file
-  UploadedFile, // Untuk unggah file
-  HttpException, // Untuk error kustom
+  UseInterceptors, 
+  UploadedFile, 
+  HttpException,
 } from '@nestjs/common';
 import { ArmadaService } from 'src/services/armada.service'; 
 import { CreateArmadaDto } from '../dto/create_armada.dto';
 import { UpdateArmadaDto } from '../dto/update_armada.dto';
-import { FotoArmadaDto } from '../dto/foto-armada.dto'; // DTO Foto
+import { FotoArmadaDto } from '../dto/foto-armada.dto'; 
 import { ApiResponse } from '../interface/api-response.interface';
 import { Armada } from '@prisma/client';
 
-// Asumsi path berikut sudah benar:
+
 import { JwtAuthGuard } from 'src/auth/strategies/jwt_auth.guard'; 
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { RolesGuard } from 'src/auth/guards/roles.guard';
@@ -35,12 +35,12 @@ import {
     ApiOperation, 
     ApiResponse as SwaggerApiResponse, 
     ApiBearerAuth,
-    ApiConsumes, // Untuk multipart/form-data
-    ApiBody, // Untuk deskripsi body request
+    ApiConsumes, 
+    ApiBody, 
 } from '@nestjs/swagger'; 
 import { FileInterceptor } from '@nestjs/platform-express'; 
 import { diskStorage } from 'multer'; 
-import * as path from 'path'; // Untuk path
+import * as path from 'path';
 import { Role } from 'src/auth/enums/role.enum';
 import { Public } from 'src/public/public.decorator';
 
@@ -63,7 +63,7 @@ export class ArmadaController {
   }
 
   @Get('all')
-  @Public() // <-- BIAR BISA DIAKSES GUEST
+  @Public() 
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Retrieve all armadas' })
   async findAll(): Promise<ApiResponse<Armada[]>> {
