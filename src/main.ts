@@ -3,7 +3,6 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { LoggingInterceptor } from './logging.interceptor';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
 import { IoAdapter } from '@nestjs/platform-socket.io';
 
 
@@ -35,6 +34,8 @@ async function bootstrap() {
 
   
 
-  await app.listen(3001);
+  const port = process.env.PORT || 8000;
+  await app.listen(port);
 }
+
 bootstrap();

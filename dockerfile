@@ -1,18 +1,18 @@
-# Stage 1: Build
 FROM node:22-alpine AS builder
-
 
 WORKDIR /app
 
 COPY package*.json ./
+
 RUN npm ci
+
 COPY . .
+
 RUN npx prisma generate
 RUN npm run build
 
-
-# Stage 2: Production
 FROM node:22-alpine AS production
+
 RUN apk add --no-cache \
   chromium \
   nss \
@@ -22,9 +22,10 @@ RUN apk add --no-cache \
   ca-certificates \
   ttf-freefont
 
-
+ENV NODE_ENV=production
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV PUPPETEER_SKIP_DOWNLOAD=true
+
 WORKDIR /app
 
 COPY --from=builder /app/package*.json ./
@@ -33,9 +34,6 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/src/modules/mail/templates ./src/modules/mail/templates
 
-COPY .env .env 
+EXPOSE 8000
 
-EXPOSE 3000
-
-# 🟢 Run migrations + start app at runtime (not build time)
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/main.js"]
